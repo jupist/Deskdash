@@ -6,12 +6,16 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 
 /** All non-Room settings (SPEC.md › Data storage). */
 val Context.prefs: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object Keys {
+    /** Calendar ids (as strings) shown on the Today tile; absent = default (all Google calendars). */
+    val calendarIds = stringSetPreferencesKey("calendar_ids")
+
     val weatherCity = stringPreferencesKey("weather_city")
     val weatherLat = doublePreferencesKey("weather_lat")
     val weatherLon = doublePreferencesKey("weather_lon")

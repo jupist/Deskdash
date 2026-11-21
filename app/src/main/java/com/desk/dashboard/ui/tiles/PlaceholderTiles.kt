@@ -38,11 +38,6 @@ private fun Empty(text: String, sub: String? = null) {
 }
 
 @Composable
-fun CalendarTile(modifier: Modifier = Modifier) {
-    Tile("Today", modifier, meta = "Calendar") { Empty("Nothing else today") }
-}
-
-@Composable
 fun MusicTile(modifier: Modifier = Modifier) {
     Tile("Now playing", modifier, meta = "Spotify") {
         Spacer(Modifier.weight(1f))

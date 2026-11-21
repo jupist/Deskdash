@@ -2,6 +2,7 @@ package com.desk.dashboard.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,7 +34,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.desk.dashboard.data.Category
 import com.desk.dashboard.data.DashDb
+import com.desk.dashboard.data.CalendarSource
+import com.desk.dashboard.data.DeviceCalendar
 import com.desk.dashboard.data.Keys
+import com.desk.dashboard.system.rememberCalendarPermission
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import com.desk.dashboard.data.Place
 import com.desk.dashboard.data.UpcomingDate
 import com.desk.dashboard.data.WeatherRepo
@@ -80,7 +88,7 @@ fun SettingsScreen(onDone: () -> Unit) {
                     // Weather first: its search results then stay above the on-screen keyboard.
                     WeatherSection()
                     Placeholder("Alarm", 6)
-                    Placeholder("Calendar", 4)
+                    CalendarSection()
                     Placeholder("Night mode", 8)
                     Placeholder("Display", 8)
                     Placeholder("Permissions", 8)
@@ -306,4 +314,68 @@ private fun WeatherSection() {
             }
         }
     }
+}
+
+@Composable
+private fun CalendarSection() {
+    val context = LocalContext.current
+    val permission = rememberCalendarPermission()
+    val scope = rememberCoroutineScope()
+
+    Section("Calendar") {
+        if (!permission.granted) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Txt("Calendar access is off", Type.body, Dash.muted, Modifier.weight(1f))
+                MiniButton("Grant", Dash.ink, Dash.slate, permission.request)
+            }
+            return@Section
+        }
+        var calendars by remember { mutableStateOf<List<DeviceCalendar>>(emptyList()) }
+        LaunchedEffect(Unit) { calendars = CalendarSource.calendars(context) }
+        val stored by remember { CalendarSource.selectedIds(context) }.collectAsStateWithLifecycle(null)
+        val selected = stored ?: CalendarSource.defaultSelection(calendars)
+
+        if (calendars.isEmpty()) {
+            Txt("No calendars on this tablet yet. Add a Google account in Android settings.", Type.bodySmall, Dash.muted, maxLines = 2)
+            return@Section
+        }
+        // Group by the label shown, so e.g. all on-device calendars share one heading.
+        calendars.groupBy { accountLabel(it.account, it.accountType) }.forEach { (label, cals) ->
+            Txt(label, Type.small.copy(letterSpacing = Type.label.letterSpacing), Dash.muted)
+            Spacer(Modifier.height(4.dp))
+            cals.forEach { cal ->
+                val on = cal.id in selected
+                Row(
+                    Modifier.fillMaxWidth().clickable {
+                        scope.launch { CalendarSource.setSelected(context, if (on) selected - cal.id else selected + cal.id) }
+                    }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(on)
+                    Spacer(Modifier.width(12.dp))
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(Color(cal.color or (0xFF shl 24))))
+                    Spacer(Modifier.width(8.dp))
+                    Txt(cal.name, Type.body, if (cal.visible) Dash.ink else Dash.muted, Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+private fun accountLabel(account: String, type: String) = when (type) {
+    "com.google" -> account
+    "LOCAL" -> "On this tablet"
+    "com.osp.app.signin" -> "Samsung account"
+    else -> account.ifBlank { type }
+}.uppercase()
+
+@Composable
+private fun Checkbox(checked: Boolean) {
+    Box(
+        Modifier.size(18.dp)
+            .background(if (checked) Dash.slate else Color.Transparent)
+            .border(1.dp, if (checked) Dash.slate else Dash.muted),
+        contentAlignment = Alignment.Center,
+    ) { if (checked) Txt("✓", Type.meta.copy(fontSize = 12.sp, lineHeight = 12.sp), Dash.onSlate) }
 }
