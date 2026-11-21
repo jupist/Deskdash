@@ -38,23 +38,6 @@ private fun Empty(text: String, sub: String? = null) {
 }
 
 @Composable
-fun MusicTile(modifier: Modifier = Modifier) {
-    Tile("Now playing", modifier, meta = "Spotify") {
-        Spacer(Modifier.weight(1f))
-        Txt("Nothing playing", Type.display16, Dash.ink)
-        Txt("Start music in Spotify", Type.bodySmall, Dash.muted)
-        Spacer(Modifier.height(14.dp))
-        Box(Modifier.fillMaxWidth().height(3.dp).background(Dash.line))
-        Spacer(Modifier.height(12.dp + 6.dp + 13.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            CircleButton(DashIcons.prev, Dash.tile, Dash.muted, 40.dp, 16.dp, outline = Dash.line) {}
-            CircleButton(DashIcons.play, Dash.ink, Dash.tile, 52.dp, 16.dp) {}
-            CircleButton(DashIcons.next, Dash.tile, Dash.muted, 40.dp, 16.dp, outline = Dash.line) {}
-        }
-    }
-}
-
-@Composable
 fun AlarmTile(modifier: Modifier = Modifier) {
     Tile("Alarm", modifier, meta = "Off") {
         Spacer(Modifier.weight(1f))
