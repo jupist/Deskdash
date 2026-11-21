@@ -1,7 +1,6 @@
 package com.desk.dashboard
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -14,6 +13,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.desk.dashboard.data.DashDb
 import com.desk.dashboard.data.WeatherRepo
+import com.desk.dashboard.media.Ambient
+import com.desk.dashboard.system.Lock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 Dashboard(
                     DashActions(
                         openSettings = { showSettings = true },
-                        lock = { todo("Lock arrives in milestone 7") },
+                        lock = { Lock.lockOrAsk(this) },
                         openApps = {},
                     )
                 )
@@ -63,6 +64,12 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Past entries are already hidden by the queries; this just drops them from storage.
         lifecycleScope.launch { DashDb.get(this@MainActivity).dates().purgeBefore(LocalDate.now()) }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Spec: ambient sound stops when the app leaves the foreground (fades out, resets to Off).
+        Ambient.stop()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -78,5 +85,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun todo(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }

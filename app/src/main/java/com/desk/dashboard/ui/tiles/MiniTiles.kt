@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.desk.dashboard.media.Ambient
+import com.desk.dashboard.media.AmbientMode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,18 +55,19 @@ private fun MiniTile(
     }
 }
 
-/** Ambient sound: Off → Noise → Rain. Sound itself arrives in milestone 7. */
+/** Ambient sound: each tap cycles Off → Noise → Rain → Off. */
 @Composable
 fun AmbientMini(modifier: Modifier = Modifier) {
-    MiniTile("Ambient", Dash.sand, Dash.onSand, modifier, onClick = {}) {
-        Txt("OFF", miniValue, Dash.onSand)
+    val mode by Ambient.mode.collectAsStateWithLifecycle()
+    MiniTile("Ambient", Dash.sand, Dash.onSand, modifier, onClick = Ambient::cycle) {
+        Txt(mode.short, miniValue, Dash.onSand)
         Spacer(Modifier.height(5.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            repeat(3) { i ->
+            AmbientMode.entries.forEach { m ->
                 Box(
                     Modifier.size(6.dp).clip(CircleShape)
                         .border(1.dp, Dash.onSand, CircleShape)
-                        .background(if (i == 0) Dash.onSand else Dash.sand)
+                        .background(if (m == mode) Dash.onSand else Dash.sand)
                 )
             }
         }
