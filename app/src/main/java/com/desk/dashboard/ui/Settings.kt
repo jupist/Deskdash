@@ -35,6 +35,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.desk.dashboard.data.Category
 import com.desk.dashboard.data.DashDb
 import com.desk.dashboard.data.CalendarSource
+import com.desk.dashboard.alarm.AlarmService
+import com.desk.dashboard.alarm.Alarms
+import android.app.Activity
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.time.DayOfWeek
 import com.desk.dashboard.data.DeviceCalendar
 import com.desk.dashboard.data.Keys
 import com.desk.dashboard.system.rememberCalendarPermission
@@ -87,7 +97,7 @@ fun SettingsScreen(onDone: () -> Unit) {
                 ) {
                     // Weather first: its search results then stay above the on-screen keyboard.
                     WeatherSection()
-                    Placeholder("Alarm", 6)
+                    AlarmSection(showOverlay = { overlay = it })
                     CalendarSection()
                     Placeholder("Night mode", 8)
                     Placeholder("Display", 8)
@@ -378,4 +388,96 @@ private fun Checkbox(checked: Boolean) {
             .border(1.dp, if (checked) Dash.slate else Dash.muted),
         contentAlignment = Alignment.Center,
     ) { if (checked) Txt("✓", Type.meta.copy(fontSize = 12.sp, lineHeight = 12.sp), Dash.onSlate) }
+}
+
+@Composable
+private fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(null)
+    val c = cfg ?: return
+
+    val soundPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val uri: Uri? = if (Build.VERSION.SDK_INT >= 33) {
+            r.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION") r.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        }
+        // "Default" (or nothing) means the system default alarm sound.
+        val value = uri?.takeIf { it != RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) }?.toString()
+        scope.launch { Alarms.setSound(context, value) }
+    }
+    val soundName = remember(c.soundUri) {
+        val uri = c.soundUri?.let(Uri::parse)
+        if (uri == null) "Default alarm"
+        else runCatching { RingtoneManager.getRingtone(context, uri)?.getTitle(context) }.getOrNull() ?: "Custom sound"
+    }
+
+    Section("Alarm") {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Field("Time", Modifier.weight(1f)) {
+                PickerField("%02d:%02d".format(c.time.hour, c.time.minute), "") {
+                    showOverlay {
+                        TimePickerOverlay(
+                            c.time,
+                            onPick = { t -> scope.launch { Alarms.setTime(context, t) }; showOverlay(null) },
+                            onClear = null,
+                            onDismiss = { showOverlay(null) },
+                        )
+                    }
+                }
+            }
+            Field("Sound", Modifier.weight(1.4f)) {
+                PickerField(soundName, "") {
+                    soundPicker.launch(
+                        Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            .putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+                            .putExtra(
+                                RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                                c.soundUri?.let(Uri::parse) ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                            )
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Field("Repeat") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DayOfWeek.entries.forEach { d ->
+                    val on = d in c.days
+                    Box(
+                        Modifier.size(30.dp)
+                            .background(if (on) Dash.slate else Color.Transparent)
+                            .border(1.dp, if (on) Dash.slate else Dash.line)
+                            .clickable { scope.launch { Alarms.setDays(context, if (on) c.days - d else c.days + d) } },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Txt(d.name.take(1), Type.meta.copy(fontSize = 11.sp), if (on) Dash.onSlate else Dash.muted)
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                Txt(if (c.days.isEmpty()) "Rings once" else "", Type.meta, Dash.muted)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Field("Snooze") {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Alarms.SNOOZE_CHOICES.forEach { m ->
+                    val on = m == c.snoozeMinutes
+                    MiniButton("$m min", if (on) Dash.onSlate else Dash.muted, if (on) Dash.slate else Dash.line) {
+                        scope.launch { Alarms.setSnoozeMinutes(context, m) }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Txt("Turn the alarm on from the dashboard tile.", Type.meta, Dash.muted, Modifier.weight(1f))
+            MiniButton("Test ring", Dash.ink) { AlarmService.ring(context) }
+        }
+    }
 }

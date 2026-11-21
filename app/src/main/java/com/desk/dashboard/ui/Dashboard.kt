@@ -63,7 +63,7 @@ fun Dashboard(actions: DashActions) {
             CalendarTile(Modifier.layoutId(Cell(6, 12, 1)))
             MusicTile(Modifier.layoutId(Cell(1, 4, 2, 3)))
             DatesTile(Modifier.layoutId(Cell(5, 12, 2)), actions.openSettings)
-            AlarmTile(Modifier.layoutId(Cell(5, 8, 3)))
+            AlarmTile(Modifier.layoutId(Cell(5, 8, 3)), actions.openSettings)
             WeatherTile(Modifier.layoutId(Cell(9, 11, 3)))
             Column(Modifier.layoutId(Cell(12, 12, 3)), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
                 AmbientMini(Modifier.fillMaxWidth().weight(1f))
