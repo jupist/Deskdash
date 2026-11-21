@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ import com.desk.dashboard.ui.Tile
 import com.desk.dashboard.ui.Txt
 import com.desk.dashboard.ui.Type
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val titleStyle = Type.display16.copy(fontSize = 18.sp, lineHeight = 22.sp)
 
@@ -58,6 +60,8 @@ fun MusicTile(modifier: Modifier = Modifier) {
         onPauseOrDispose { repo.stop() }
     }
     val np by repo.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var resuming by remember { mutableStateOf(false) }
     val playing = np
 
     Tile("Now playing", modifier, meta = playing?.let { sourceName(context, it.pkg) } ?: "Spotify") {
@@ -72,9 +76,20 @@ fun MusicTile(modifier: Modifier = Modifier) {
             playing == null -> {
                 Spacer(Modifier.weight(1f))
                 Txt("Nothing playing", Type.display16, Dash.ink)
-                Txt("Start music in Spotify", Type.bodySmall, Dash.muted)
+                Txt(if (resuming) "Waking Spotify…" else "Resume plays your last Spotify track", Type.bodySmall, Dash.muted)
                 Spacer(Modifier.height(14.dp))
-                Box { MiniButton("Open Spotify", Dash.ink, Dash.slate) { openSpotify(context) } }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MiniButton("Resume Spotify", Dash.ink, Dash.slate) {
+                        if (resuming) return@MiniButton
+                        resuming = true
+                        scope.launch {
+                            // Plays in the background; only opens the app if Spotify can't be woken.
+                            if (!repo.resumeSpotify()) openSpotify(context)
+                            resuming = false
+                        }
+                    }
+                    MiniButton("Open Spotify") { openSpotify(context) }
+                }
             }
             else -> Playing(playing, repo)
         }

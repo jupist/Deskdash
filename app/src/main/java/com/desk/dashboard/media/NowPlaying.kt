@@ -5,6 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaMetadata
+import android.media.browse.MediaBrowser
+import android.service.media.MediaBrowserService
+import android.view.KeyEvent
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
@@ -18,6 +21,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.graphics.scale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 
 const val SPOTIFY = "com.spotify.music"
 
@@ -156,6 +163,71 @@ class MediaRepo private constructor(private val context: Context) {
 
     fun next() = controller?.transportControls?.skipToNext()
     fun previous() = controller?.transportControls?.skipToPrevious()
+
+    /**
+     * Resumes Spotify's last track in the background when it has no session (not running).
+     * 1. Sends a PLAY key straight to Spotify's media button receiver (what a headset does).
+     * 2. Falls back to connecting to Spotify's MediaBrowserService and calling play().
+     * Returns false if neither produced a Spotify session; the caller then opens the app.
+     */
+    suspend fun resumeSpotify(): Boolean {
+        sendPlayKeyToSpotify()
+        if (awaitSpotifyPlaying()) return true
+        val viaBrowser = runCatching { playViaBrowser() }.getOrDefault(false)
+        return viaBrowser && awaitSpotifyPlaying()
+    }
+
+    private fun sendPlayKeyToSpotify() {
+        val probe = Intent(Intent.ACTION_MEDIA_BUTTON).setPackage(SPOTIFY)
+        val receiver = context.packageManager.queryBroadcastReceivers(probe, 0).firstOrNull()?.activityInfo ?: return
+        for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+            context.sendBroadcast(
+                Intent(Intent.ACTION_MEDIA_BUTTON)
+                    .setComponent(ComponentName(receiver.packageName, receiver.name))
+                    .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+                    .putExtra(Intent.EXTRA_KEY_EVENT, KeyEvent(action, KeyEvent.KEYCODE_MEDIA_PLAY))
+            )
+        }
+    }
+
+    /** Waits for a Spotify session to show up; presses play on it if it arrives paused. */
+    private suspend fun awaitSpotifyPlaying(timeoutMs: Long = 6000): Boolean {
+        val np = withTimeoutOrNull(timeoutMs) { state.first { it?.pkg == SPOTIFY } } ?: return false
+        if (!np.playing) {
+            controller?.transportControls?.play()
+            withTimeoutOrNull(3000) { state.first { it?.pkg == SPOTIFY && it.playing } }
+        }
+        return true
+    }
+
+    /** Connects to Spotify's MediaBrowserService (Android Auto's route) and plays. */
+    private suspend fun playViaBrowser(): Boolean {
+        val service = context.packageManager
+            .queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE).setPackage(SPOTIFY), 0)
+            .firstOrNull()?.serviceInfo ?: return false
+        return withTimeoutOrNull(6000) {
+            suspendCancellableCoroutine { cont ->
+                var browser: MediaBrowser? = null
+                browser = MediaBrowser(
+                    context, ComponentName(service.packageName, service.name),
+                    object : MediaBrowser.ConnectionCallback() {
+                        override fun onConnected() {
+                            val b = browser!!
+                            MediaController(context, b.sessionToken).transportControls.play()
+                            // Give play a moment to reach Spotify before dropping the connection.
+                            main.postDelayed({ b.disconnect() }, 3000)
+                            if (cont.isActive) cont.resume(true)
+                        }
+                        override fun onConnectionFailed() { if (cont.isActive) cont.resume(false) }
+                        override fun onConnectionSuspended() { if (cont.isActive) cont.resume(false) }
+                    },
+                    null,
+                )
+                main.post { browser.connect() }
+                cont.invokeOnCancellation { main.post { browser.disconnect() } }
+            }
+        } ?: false
+    }
 
     companion object {
         @Volatile private var instance: MediaRepo? = null
