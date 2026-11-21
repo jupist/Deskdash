@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,7 +33,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.desk.dashboard.data.Category
 import com.desk.dashboard.data.DashDb
+import com.desk.dashboard.data.Keys
+import com.desk.dashboard.data.Place
 import com.desk.dashboard.data.UpcomingDate
+import com.desk.dashboard.data.WeatherRepo
+import com.desk.dashboard.data.prefs
+import androidx.compose.foundation.clickable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import com.desk.dashboard.system.rememberToday
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -69,9 +77,10 @@ fun SettingsScreen(onDone: () -> Unit) {
                     Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(Dash.gap),
                 ) {
+                    // Weather first: its search results then stay above the on-screen keyboard.
+                    WeatherSection()
                     Placeholder("Alarm", 6)
                     Placeholder("Calendar", 4)
-                    Placeholder("Weather", 3)
                     Placeholder("Night mode", 8)
                     Placeholder("Display", 8)
                     Placeholder("Permissions", 8)
@@ -226,6 +235,74 @@ private fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                 }
                 if (form.editingId != null) MiniButton("Cancel") { form.reset() }
                 form.error?.let { Txt(it, Type.meta, Dash.slateLight) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeatherSection() {
+    val context = LocalContext.current
+    val repo = remember { WeatherRepo.get(context) }
+    val scope = rememberCoroutineScope()
+    val focus = LocalFocusManager.current
+    val city by remember { context.prefs.data.map { it[Keys.weatherCity] } }.collectAsStateWithLifecycle(null)
+    val unit by remember { context.prefs.data.map { it[Keys.tempUnit] ?: "celsius" } }.collectAsStateWithLifecycle("celsius")
+
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<Place>>(emptyList()) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    // Debounced search as the user types.
+    LaunchedEffect(query) {
+        results = emptyList()
+        val q = query.trim()
+        if (q.length < 2) { status = null; return@LaunchedEffect }
+        delay(400)
+        status = "Searching…"
+        status = runCatching { repo.searchCity(q) }.fold(
+            onSuccess = { results = it; if (it.isEmpty()) "No matches" else null },
+            onFailure = { "Search failed — check the connection" },
+        )
+    }
+
+    Section("Weather") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Txt("City", Type.body, Dash.muted, Modifier.width(64.dp))
+            Txt(city ?: "Not set", Type.body, if (city == null) Dash.muted else Dash.ink, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        TextInput(query, { query = it }, "Search a city", 60)
+        status?.let {
+            Spacer(Modifier.height(8.dp))
+            Txt(it, Type.meta, Dash.muted)
+        }
+        if (results.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            results.forEach { place ->
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Dash.line))
+                Row(
+                    Modifier.fillMaxWidth().clickable {
+                        focus.clearFocus()
+                        query = ""
+                        scope.launch { repo.setCity(place) }
+                    }.padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Txt(place.name, Type.body, Dash.ink)
+                    Spacer(Modifier.width(10.dp))
+                    Txt(place.detail, Type.meta, Dash.muted, Modifier.weight(1f))
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Txt("Units", Type.body, Dash.muted, Modifier.width(64.dp))
+            listOf("celsius" to "°C", "fahrenheit" to "°F").forEach { (value, label) ->
+                val on = unit == value
+                MiniButton(label, if (on) Dash.onSlate else Dash.muted, if (on) Dash.slate else Dash.line) {
+                    if (!on) scope.launch { repo.setUnit(value) }
+                }
             }
         }
     }

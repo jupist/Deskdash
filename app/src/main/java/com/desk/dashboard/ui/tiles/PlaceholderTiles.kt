@@ -38,15 +38,6 @@ private fun Empty(text: String, sub: String? = null) {
 }
 
 @Composable
-fun WeatherTile(modifier: Modifier = Modifier) {
-    Tile("Weather", modifier, meta = "—") {
-        Spacer(Modifier.weight(1f))
-        Txt("--°", Type.big, Dash.muted)
-        Txt("Set a city in settings", Type.meta, Dash.muted)
-    }
-}
-
-@Composable
 fun CalendarTile(modifier: Modifier = Modifier) {
     Tile("Today", modifier, meta = "Calendar") { Empty("Nothing else today") }
 }
@@ -91,55 +82,3 @@ fun AlarmTile(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun AmbientTile(modifier: Modifier = Modifier) {
-    Box(modifier) {
-        Tile("Ambient", Modifier.fillMaxSize(), fill = Dash.sand, ink = Dash.onSand) {
-            Spacer(Modifier.weight(1f))
-            Txt("OFF", Type.secondary, Dash.onSand)
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                repeat(3) { i ->
-                    Box(
-                        Modifier.size(7.dp).clip(CircleShape)
-                            .border(1.dp, Dash.onSand, CircleShape)
-                            .background(if (i == 0) Dash.onSand else Dash.sand)
-                    )
-                }
-            }
-        }
-        CircleButton(DashIcons.arrow, Dash.onSand, Dash.sand, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp)) {}
-    }
-}
-
-@Composable
-fun ControlsTile(modifier: Modifier = Modifier) {
-    Tile("Controls", modifier) {
-        Spacer(Modifier.weight(1f))
-        FakeSlider("Volume")
-        Spacer(Modifier.height(14.dp))
-        FakeSlider("Brightness")
-    }
-}
-
-@Composable
-private fun FakeSlider(label: String) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Txt(label.uppercase(), Type.meta.copy(letterSpacing = Type.label.letterSpacing), Dash.muted, Modifier.weight(1f))
-        Txt("—", Type.display16, Dash.ink)
-    }
-    Box(Modifier.fillMaxWidth().padding(top = 15.dp, bottom = 4.dp).height(3.dp).background(Dash.line))
-}
-
-@Composable
-fun ReadingTile(modifier: Modifier = Modifier) {
-    Box(modifier) {
-        Tile("Reading", Modifier.fillMaxSize()) {
-            Spacer(Modifier.weight(1f))
-            Txt("ReadEra", Type.secondary, Dash.ink)
-            Spacer(Modifier.height(6.dp))
-            Txt("Open your PDFs", Type.bodySmall, Dash.muted)
-        }
-        CircleButton(DashIcons.arrow, Dash.ink, Dash.tile, modifier = Modifier.align(Alignment.TopEnd).padding(14.dp)) {}
-    }
-}

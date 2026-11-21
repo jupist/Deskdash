@@ -63,14 +63,16 @@ Layout: 12 dp outer padding and gaps, a 48 dp top bar, then a grid of 12 equal c
 | Tile | Columns | Rows | Fill |
 |---|---|---|---|
 | Time | 1–5 | 1 | slate |
-| Weather | 6–8 | 1 | tile |
-| Calendar (today) | 9–12 | 1 | tile |
+| Calendar (today) | 6–12 | 1 | tile |
 | Now playing | 1–4 | 2–3 | tile |
-| Alarm | 5–8 | 2 | tile |
-| Upcoming dates | 9–12 | 2 | tile |
-| Ambient | 5–6 | 3 | sand |
-| Controls (sliders) | 7–9 | 3 | tile |
-| Reading (ReadEra) | 10–12 | 3 | tile |
+| Upcoming dates | 5–12 | 2 | tile |
+| Alarm | 5–8 | 3 | tile |
+| Weather | 9–11 | 3 | tile |
+| Ambient (top half) / Reading (bottom half) | 12 | 3 | sand / tile |
+
+Volume and brightness are compact sliders in the top bar (between "Updated" and Settings), not a tile. Ambient and Reading are half-height mini tiles stacked in column 12 (10 dp padding, 9 sp label, tap anywhere). This layout (changed in milestone 3) gives Today and Upcoming nearly the full width.
+
+Density note: the mockup is drawn in CSS px at 1340 × 800, but the tablet renders at ~1.33 px/dp (≈ 1006 × 600 dp), so tiles have less room than in the mockup. Upcoming uses the mockup's two-line rows when they fit and falls back to one-line rows otherwise.
 
 Round elements are limited to the circular action buttons (34 dp), media controls (40 dp, play 52 dp) and toggle switches.
 
@@ -78,7 +80,7 @@ Round elements are limited to the circular action buttons (34 dp), media control
 
 Each tile reads from one source and has an empty or error state, so the screen never shows a blank box.
 
-- **Top bar.** 3 × 3 dot icon at left, then battery ("84% · charging", from ACTION_BATTERY_CHANGED) and "Updated HH:mm" (last successful weather fetch). At right: outlined uppercase Settings and Lock buttons.
+- **Top bar.** 3 × 3 dot icon at left, then battery ("84% · charging", from ACTION_BATTERY_CHANGED) and "Updated HH:mm" (last successful weather fetch). In the middle: Vol and Light sliders. At right: outlined uppercase Settings and Lock buttons.
 - **Time.** 24-hour HH:mm in Share Tech Mono, weekday and date ("SAT" / "21 NOV") at right. Recompose only on minute changes, aligned to the start of each minute.
 - **Weather.** Current temp, condition word (WMO code), today's high/low, five bars for the next five days' highs with weekday labels; today's bar slate, rest sand. Source: Open-Meteo `api.open-meteo.com/v1/forecast` (no key) with `current`, `daily=temperature_2m_max,temperature_2m_min,weather_code`. Refresh every 30 min and on resume; on failure keep cached data shown in muted color.
 - **Calendar (today).** Next three events from now until end of tomorrow: time, title, relative label for the next one ("in 25 min", "now"). Source: CalendarContract.Instances filtered to calendars chosen in Settings. Tap opens the event in the Calendar app. Empty: "Nothing else today".
@@ -86,7 +88,7 @@ Each tile reads from one source and has an empty or error state, so the screen n
 - **Now playing.** Album art, title, artist, progress bar with elapsed/total, prev / play-pause / next. Source: MediaSessionManager.getActiveSessions() via a NotificationListenerService; prefer Spotify (com.spotify.music), else most recently active. Controls via MediaController.TransportControls. Empty: "Nothing playing" with a button that launches Spotify.
 - **Alarm.** The app's own alarm: time, repeat days (M T W T F S S chips), toggle. On schedules next occurrence with AlarmManager.setAlarmClock(); off cancels. When it fires, show a full-screen alarm activity (over lock screen) with large Stop and Snooze, playing the chosen sound on the alarm stream. Reschedule after reboot and after each ring.
 - **Ambient.** Each tap cycles Off → White noise → Rain → Off, shown as large text plus three step dots. White noise generated with AudioTrack; rain is a bundled seamless CC0 loop (~1 min, OGG) via ExoPlayer on repeat. 1 s fade in/out. Stops when the app leaves the foreground.
-- **Controls.** Volume (STREAM_MUSIC via AudioManager) and brightness (Settings.System.SCREEN_BRIGHTNESS, mode manual, plus window brightness for instant change) sliders with numeric readouts.
+- **Controls (top bar).** Volume (STREAM_MUSIC via AudioManager) and brightness (Settings.System.SCREEN_BRIGHTNESS, mode manual, plus window brightness for instant change) sliders with numeric readouts.
 - **Reading.** "ReadEra" with a circular arrow button; launches org.readera via getLaunchIntentForPackage, else opens its Play Store page.
 - **Lock.** DevicePolicyManager.lockNow() with a device admin receiver using only force-lock. (Alternative: accessibility service GLOBAL_ACTION_LOCK_SCREEN, keeps fingerprint unlock.)
 

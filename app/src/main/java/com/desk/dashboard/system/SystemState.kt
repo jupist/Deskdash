@@ -16,9 +16,9 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
-/** Registers [receiver] for [filter] while the composable is in the tree. */
+/** Calls [onIntent] for broadcasts matching [filter] while the composable is in the tree. */
 @Composable
-private fun SystemBroadcast(filter: IntentFilter, onIntent: (Intent?) -> Unit) {
+fun SystemBroadcast(filter: IntentFilter, onIntent: (Intent?) -> Unit) {
     val context = LocalContext.current
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {

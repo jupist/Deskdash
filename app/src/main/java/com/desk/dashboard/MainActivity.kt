@@ -13,6 +13,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.desk.dashboard.data.DashDb
+import com.desk.dashboard.data.WeatherRepo
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import com.desk.dashboard.ui.DashActions
 import com.desk.dashboard.ui.Dashboard
 import com.desk.dashboard.ui.SettingsScreen
@@ -25,6 +29,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
+
+        // Weather: show the cache at once, refresh on every start (if older than 5 min), then every 30 min.
+        val weather = WeatherRepo.get(this)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                weather.loadCache()
+                weather.refresh(maxAgeMs = 5 * 60 * 1000L)
+                while (true) {
+                    delay(WeatherRepo.REFRESH_MS)
+                    weather.refresh()
+                }
+            }
+        }
 
         setContent {
             var showSettings by rememberSaveable { mutableStateOf(false) }

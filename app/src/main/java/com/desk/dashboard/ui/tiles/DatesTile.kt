@@ -163,22 +163,25 @@ private fun leftColor(days: Long) = if (days <= 3) Dash.slateLight else Dash.ink
 
 private val compactDate = TextStyle(fontFamily = Display, fontSize = 16.sp, lineHeight = 16.sp, lineHeightStyle = trim)
 
-/** One-line row: 24 NOV · TAG · title · time … days left. */
+/** One-line row: 24 NOV · TAG · title · time · note … days left. */
 @Composable
 private fun CompactRow(e: UpcomingDate, today: LocalDate) {
     val days = ChronoUnit.DAYS.between(today, e.date)
     Column(Modifier.fillMaxWidth()) {
         Divider()
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Txt("%02d ".format(e.date.dayOfMonth) + e.date.format(mon).uppercase(), compactDate, Dash.ink, Modifier.width(62.dp))
+            Txt("%02d ".format(e.date.dayOfMonth) + e.date.format(mon).uppercase(), compactDate, Dash.ink, Modifier.width(70.dp))
             Txt(
                 e.category.name, tinyStyle, Dash.muted,
                 Modifier.border(1.dp, Dash.line).padding(horizontal = 4.dp, vertical = 1.dp),
             )
             Spacer(Modifier.width(6.dp))
-            // No room for the note on one line; it shows in the two-line layout and in Settings.
-            Txt(e.title, titleStyle, Dash.ink, Modifier.weight(1f))
-            e.time?.let { Txt(it.format(hhmm), noteStyle, Dash.muted, Modifier.padding(start = 8.dp)) }
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                // Title takes what it needs (up to ~2/3); time and note get the rest and truncate first.
+                Txt(e.title, titleStyle, Dash.ink, Modifier.weight(2f, fill = false))
+                val sub = listOfNotNull(e.time?.format(hhmm), e.note).joinToString(" · ")
+                if (sub.isNotEmpty()) Txt(sub, noteStyle, Dash.muted, Modifier.padding(start = 12.dp).weight(1f, fill = false))
+            }
             Spacer(Modifier.width(8.dp))
             Txt(daysLeft(days), leftStyle.copy(fontSize = 16.sp, lineHeight = 16.sp), leftColor(days))
         }
