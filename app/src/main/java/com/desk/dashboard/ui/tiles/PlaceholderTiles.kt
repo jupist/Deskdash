@@ -52,15 +52,6 @@ fun CalendarTile(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun DatesTile(modifier: Modifier = Modifier) {
-    Tile("Upcoming", modifier, meta = "0 dates") {
-        Empty("No dates yet")
-        Spacer(Modifier.weight(1f))
-        Txt("ADD IN SETTINGS", Type.meta, Dash.muted)
-    }
-}
-
-@Composable
 fun MusicTile(modifier: Modifier = Modifier) {
     Tile("Now playing", modifier, meta = "Spotify") {
         Spacer(Modifier.weight(1f))

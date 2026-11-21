@@ -49,7 +49,7 @@ fun Dashboard(actions: DashActions) {
             CalendarTile(Modifier.layoutId(Cell(9, 12, 1)))
             MusicTile(Modifier.layoutId(Cell(1, 4, 2, 3)))
             AlarmTile(Modifier.layoutId(Cell(5, 8, 2)))
-            DatesTile(Modifier.layoutId(Cell(9, 12, 2)))
+            DatesTile(Modifier.layoutId(Cell(9, 12, 2)), actions.openSettings)
             AmbientTile(Modifier.layoutId(Cell(5, 6, 3)))
             ControlsTile(Modifier.layoutId(Cell(7, 9, 3)))
             ReadingTile(Modifier.layoutId(Cell(10, 12, 3)))

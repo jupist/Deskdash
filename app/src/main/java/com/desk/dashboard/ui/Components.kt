@@ -79,11 +79,17 @@ fun Tile(
             .background(fill)
             .padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV)
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Txt(label.uppercase(), Type.label, ink, Modifier.weight(1f))
-            if (meta != null) Txt(meta, Type.label.copy(letterSpacing = Type.meta.letterSpacing), metaColor)
-        }
+        TileHeader(label, meta, ink, metaColor)
         content()
+    }
+}
+
+/** Uppercase label at left, optional muted meta at right. */
+@Composable
+fun TileHeader(label: String, meta: String?, ink: Color = Dash.ink, metaColor: Color = Dash.muted) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Txt(label.uppercase(), Type.label, ink, Modifier.weight(1f))
+        if (meta != null) Txt(meta, Type.label.copy(letterSpacing = Type.meta.letterSpacing), metaColor)
     }
 }
 
