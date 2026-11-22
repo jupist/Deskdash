@@ -32,6 +32,7 @@ object DashIcons {
             "M10.2 8a2.2 2.2 0 1 1-4.4 0a2.2 2.2 0 1 1 4.4 0z",
         1.2f,
     )
+    val volume = stroke("M2 6h2.5L8 3v10L4.5 10H2zM10.5 5.8a3 3 0 0 1 0 4.4M12.3 4a5.5 5.5 0 0 1 0 8")
     val lock = stroke("M3 7h10v7H3zM5 7V5a3 3 0 0 1 6 0v2")
     val arrow = stroke("M4 12L12 4M6 4h6v6", 1.5f)
     val prev = fill("M4 3h1.5v10H4zM13 3v10L6.5 8z")

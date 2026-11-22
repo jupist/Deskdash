@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -99,11 +100,11 @@ fun FlatSlider(
 
 @Composable
 private fun LabeledSlider(
-    label: String, value: Float, onChange: (Float) -> Unit, onRelease: () -> Unit = {},
+    icon: ImageVector, value: Float, onChange: (Float) -> Unit, onRelease: () -> Unit = {},
     modifier: Modifier = Modifier, fill: Boolean = false,
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Txt(label.uppercase(), Type.small.copy(letterSpacing = Type.label.letterSpacing), tc.muted, if (fill) Modifier.width(44.dp) else Modifier)
+        Icon(icon, tc.muted, 18.dp, Modifier.padding(end = 6.dp))
         // 150 dp track plus 12 dp of extra touch area at each end.
         FlatSlider(value, onChange, if (fill) Modifier.weight(1f) else Modifier.width(174.dp), onRelease = onRelease)
         Txt("${(value * 100).roundToInt()}", Type.display16.copy(textAlign = TextAlign.End), tc.ink, Modifier.width(30.dp))
@@ -120,7 +121,7 @@ fun VolumeSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
     val filter = remember { IntentFilter("android.media.VOLUME_CHANGED_ACTION") }
     SystemBroadcast(filter) { v = audio.getStreamVolume(AudioManager.STREAM_MUSIC) / max }
 
-    LabeledSlider("Vol", v, modifier = modifier, fill = fill, onChange = {
+    LabeledSlider(DashIcons.volume, v, modifier = modifier, fill = fill, onChange = {
         v = it
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, (it * max).roundToInt(), 0)
     })
@@ -139,7 +140,7 @@ fun BrightnessSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
     var asked by remember { mutableStateOf(false) } // sent the user to the permission screen already
 
     LabeledSlider(
-        "Light", v, modifier = modifier, fill = fill,
+        DashIcons.sun, v, modifier = modifier, fill = fill,
         onChange = {
             v = it
             activity?.window?.let { w ->
