@@ -22,7 +22,7 @@ A customizable, always-on dashboard for an Android tablet or phone on your desk.
 
 ## Install
 
-Build it yourself (below), or download the APK from [Releases](https://github.com/jupist/Deskdash/releases) or the latest [Build](https://github.com/jupist/Deskdash/actions) run. Needs Android 11 or newer.
+Build it yourself (below), or download the APK from [Releases](https://github.com/jupist/Deskdash/releases) or the latest [Build](https://github.com/jupist/Deskdash/actions) run. Needs Android 8.0 or newer.
 
 ## Build
 

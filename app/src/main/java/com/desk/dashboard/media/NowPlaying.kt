@@ -92,8 +92,9 @@ class MediaRepo private constructor(private val context: Context) {
 
     /** Opens the system page where the user turns on notification access for this app. */
     fun accessIntent(): Intent =
-        Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+        (if (android.os.Build.VERSION.SDK_INT >= 30) Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
             .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+        else Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list -> watch(list.orEmpty()) }

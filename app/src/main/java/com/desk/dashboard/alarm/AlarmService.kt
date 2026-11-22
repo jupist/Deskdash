@@ -99,7 +99,8 @@ class AlarmService : Service() {
 
     private fun startRinging() {
         // Always enter the foreground first: required within seconds of startForegroundService.
-        startForeground(NOTIF_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        if (android.os.Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        else startForeground(NOTIF_ID, notification())
         if (_ringing.value) return
         _ringing.value = true
 

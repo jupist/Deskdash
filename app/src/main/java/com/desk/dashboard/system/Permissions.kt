@@ -30,11 +30,16 @@ fun rememberCalendarPermission(): PermissionState = rememberRuntimePermission(Ma
  * runtime dialog; if Android won't show it any more ("don't ask again"), it opens the app's
  * settings page.
  */
+/** Granted, counting notifications as allowed before Android 13 (no runtime permission there). */
+fun hasPermission(context: Context, permission: String) =
+    (permission == Manifest.permission.POST_NOTIFICATIONS && android.os.Build.VERSION.SDK_INT < 33) ||
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+
 @Composable
 fun rememberRuntimePermission(permission: String): PermissionState {
     val context = LocalContext.current
     val activity = context as Activity
-    fun check() = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    fun check() = hasPermission(context, permission)
     var granted by remember { mutableStateOf(check()) }
     LifecycleResumeEffect(Unit) {
         granted = check()
@@ -56,7 +61,7 @@ fun rememberRuntimePermission(permission: String): PermissionState {
  * screen). Asks for the first; sends the user to the system page for the second.
  */
 fun ensureAlarmPermissions(context: Context, requestNotifications: () -> Unit) {
-    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+    if (!hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)) {
         requestNotifications()
         return
     }

@@ -159,7 +159,9 @@ object FavouriteAppsModule : Module(
 object UsageAccess {
     fun granted(c: Context): Boolean {
         val ops = c.getSystemService(AppOpsManager::class.java)
-        return ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), c.packageName) == AppOpsManager.MODE_ALLOWED
+        val mode = if (android.os.Build.VERSION.SDK_INT >= 29) ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), c.packageName)
+        else @Suppress("DEPRECATION") ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), c.packageName)
+        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     fun intent(c: Context) = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${c.packageName}"))

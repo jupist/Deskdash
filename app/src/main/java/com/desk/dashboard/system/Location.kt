@@ -4,14 +4,16 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
-import android.os.CancellationSignal
+import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
+import androidx.core.os.CancellationSignal
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /** One approximate fix for weather. Needs ACCESS_COARSE_LOCATION (checked by the caller). */
 object DeviceLocation {
-    fun enabled(c: Context) = c.getSystemService(LocationManager::class.java).isLocationEnabled
+    fun enabled(c: Context) = LocationManagerCompat.isLocationEnabled(c.getSystemService(LocationManager::class.java))
 
     @SuppressLint("MissingPermission")
     suspend fun current(c: Context): Location? {
@@ -24,7 +26,9 @@ object DeviceLocation {
                 suspendCancellableCoroutine<Location?> { cont ->
                     val cancel = CancellationSignal()
                     cont.invokeOnCancellation { cancel.cancel() }
-                    runCatching { lm.getCurrentLocation(p, cancel, c.mainExecutor) { cont.resume(it) } }
+                    runCatching {
+                        LocationManagerCompat.getCurrentLocation(lm, p, cancel, ContextCompat.getMainExecutor(c)) { if (cont.isActive) cont.resume(it) }
+                    }
                         .onFailure { cont.resume(null) }
                 }
             }

@@ -12,6 +12,7 @@
 - New app icon with a themed-icon layer; alarm buttons and the night clock follow your theme.
 - Faster start: no blank first frame, including right after an update.
 - Google events are kept offline between restarts.
+- Runs on Android 8.0 and newer (was Android 11).
 
 ## 1.0.0
 
