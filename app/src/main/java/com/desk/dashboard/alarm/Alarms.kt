@@ -122,11 +122,23 @@ object Alarms {
         am.cancel(firePending(context, RC_SNOOZE))
         val now = System.currentTimeMillis()
         cfg.snoozeAt?.let { at ->
-            if (at > now) am.setAlarmClock(AlarmManager.AlarmClockInfo(at, showPending(context)), firePending(context, RC_SNOOZE))
+            if (at > now) setClock(am, at, context, RC_SNOOZE)
         }
         if (cfg.enabled) {
             val at = cfg.next().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-            am.setAlarmClock(AlarmManager.AlarmClockInfo(at, showPending(context)), firePending(context, RC_RING))
+            setClock(am, at, context, RC_RING)
+        }
+    }
+
+    /**
+     * An alarm-clock alarm (exact, shown in the status bar). If exact alarms aren't allowed (Android
+     * 12 with the permission revoked), falls back to an inexact wake-up rather than crashing.
+     */
+    private fun setClock(am: AlarmManager, at: Long, context: Context, rc: Int) {
+        try {
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(at, showPending(context)), firePending(context, rc))
+        } catch (_: SecurityException) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, firePending(context, rc))
         }
     }
 

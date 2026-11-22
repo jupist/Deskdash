@@ -60,11 +60,14 @@ fun ensureAlarmPermissions(context: Context, requestNotifications: () -> Unit) {
         requestNotifications()
         return
     }
-    val nm = context.getSystemService(NotificationManager::class.java)
-    if (!nm.canUseFullScreenIntent()) {
+    if (!canFullScreen(context)) {
         Toast.makeText(context, "Allow full-screen alerts so the alarm can show over the lock screen", Toast.LENGTH_LONG).show()
         context.startActivity(
             Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}"))
         )
     }
 }
+
+/** Full-screen alerts (alarm over the lock screen) need a grant only from Android 14. */
+fun canFullScreen(context: Context): Boolean =
+    android.os.Build.VERSION.SDK_INT < 34 || context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()

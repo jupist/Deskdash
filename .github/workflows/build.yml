@@ -15,8 +15,8 @@ jobs:
           distribution: temurin
           java-version: 21
       # The Ubuntu runner ships the Android SDK (ANDROID_HOME is set); Gradle fetches any missing platform.
-      - name: Unit tests
-        run: ./gradlew --no-daemon test
+      - name: Unit tests and lint
+        run: ./gradlew --no-daemon test lintRelease
       - name: Build release APK
         run: ./gradlew --no-daemon assembleRelease
       - uses: actions/upload-artifact@v4

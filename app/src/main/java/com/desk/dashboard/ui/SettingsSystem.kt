@@ -233,7 +233,7 @@ private class SpecialAccess(
         fun read(c: Context) = SpecialAccess(
             listener = MediaRepo.get(c).hasAccess(),
             writeSettings = Settings.System.canWrite(c),
-            fullScreen = c.getSystemService(NotificationManager::class.java).canUseFullScreenIntent(),
+            fullScreen = com.desk.dashboard.system.canFullScreen(c),
             admin = Lock.isEnabled(c),
             battery = Device.isIgnoringBatteryOptimizations(c),
             usage = com.desk.dashboard.modules.UsageAccess.granted(c),

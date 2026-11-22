@@ -63,6 +63,7 @@ object Apps {
  */
 private class IconTheme(val background: Int, val foreground: Int) {
     fun apply(icon: Drawable): Drawable? {
+        if (android.os.Build.VERSION.SDK_INT < 33) return null // monochrome layers arrived in Android 13
         val mono = (icon as? AdaptiveIconDrawable)?.monochrome ?: return null
         return AdaptiveIconDrawable(ColorDrawable(background), mono.mutate().apply { setTint(foreground) })
     }
@@ -70,6 +71,7 @@ private class IconTheme(val background: Int, val foreground: Int) {
     companion object {
         /** Null when themed icons are off. Samsung stores the switch as colortheme_app_icon. */
         fun read(context: Context): IconTheme? {
+            if (android.os.Build.VERSION.SDK_INT < 33) return null
             val on = runCatching { Settings.System.getInt(context.contentResolver, "colortheme_app_icon") == 1 }
                 .getOrDefault(false)
             if (!on) return null

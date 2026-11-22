@@ -112,8 +112,12 @@ object Timers {
     private fun schedule(c: Context, id: String, s: TimerState) {
         cancel(c, id)
         if (s.running && s.mode != "stopwatch") {
-            c.getSystemService(AlarmManager::class.java)
-                .setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, s.endAt, pending(c, id))
+            val am = c.getSystemService(AlarmManager::class.java)
+            try {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, s.endAt, pending(c, id))
+            } catch (_: SecurityException) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, s.endAt, pending(c, id)) // exact alarms not allowed
+            }
         }
     }
 
