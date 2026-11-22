@@ -149,9 +149,8 @@ object MusicModule : Module(
         Column(Modifier.fillMaxSize()) {
             Spacer(Modifier.height(12.dp))
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                val boxW = maxWidth; val boxH = maxHeight
-                val side = min(maxWidth, maxHeight)
-                if (showArt) Art(np, side) { openApp(context, np.pkg) }
+                // As large as fits, in the art's own shape (square albums, wide video thumbnails).
+                if (showArt) Art(np, maxWidth, maxHeight) { openApp(context, np.pkg) }
             }
             Spacer(Modifier.height(12.dp))
             Txt(np.title, Type.display16.copy(fontSize = Type.display20.fontSize), tc.ink)
@@ -165,26 +164,35 @@ object MusicModule : Module(
     @Composable
     private fun WidePlayer(np: NowPlaying, repo: MediaRepo, showArt: Boolean, height: Dp) {
         val context = LocalContext.current
-        Row(Modifier.fillMaxSize().padding(top = 10.dp), verticalAlignment = Alignment.Bottom) {
-            if (showArt) {
-                Art(np, height - 10.dp) { openApp(context, np.pkg) }
-                Spacer(Modifier.width(16.dp))
-            }
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
-                Txt(np.title, Type.display16.copy(fontSize = Type.display20.fontSize), tc.ink)
-                Txt(listOf(np.artist, np.album).filter { it.isNotBlank() }.joinToString(" — "), Type.bodySmall, tc.muted)
-                if (height > 110.dp) Progress(np)
-                Spacer(Modifier.height(8.dp))
-                Controls(repo, np, if (height > 110.dp) 46.dp else 38.dp)
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val rowW = maxWidth
+            Row(Modifier.fillMaxSize().padding(top = 10.dp), verticalAlignment = Alignment.Bottom) {
+                if (showArt) {
+                    // Full height, in its own shape, but leaving at least half the width for the text.
+                    Art(np, rowW * 0.5f, height - 10.dp) { openApp(context, np.pkg) }
+                    Spacer(Modifier.width(16.dp))
+                }
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
+                    Txt(np.title, Type.display16.copy(fontSize = Type.display20.fontSize), tc.ink)
+                    Txt(listOf(np.artist, np.album).filter { it.isNotBlank() }.joinToString(" — "), Type.bodySmall, tc.muted)
+                    if (height > 110.dp) Progress(np)
+                    Spacer(Modifier.height(8.dp))
+                    Controls(repo, np, if (height > 110.dp) 46.dp else 38.dp)
+                }
             }
         }
     }
 
+    /** The art at its own aspect ratio, as large as fits in [maxW] × [maxH]; a square placeholder without art. */
     @Composable
-    private fun Art(np: NowPlaying, side: Dp, onClick: () -> Unit) {
-        Box(Modifier.size(side).clip(com.desk.dashboard.ui.Dash.smallShape).background(tc.line).pressable(onClick, 0.97f)) {
-            np.art?.let { Image(it, null, Modifier.size(side), contentScale = ContentScale.Crop) }
-                ?: Box(Modifier.size(side), contentAlignment = Alignment.Center) { Icon(DashIcons.music, tc.muted, side / 4) }
+    private fun Art(np: NowPlaying, maxW: Dp, maxH: Dp, onClick: () -> Unit) {
+        val art = np.art
+        val aspect = if (art != null && art.height > 0) art.width.toFloat() / art.height else 1f
+        val w = min(maxW, maxH * aspect)
+        val h = w / aspect
+        Box(Modifier.size(w, h).clip(com.desk.dashboard.ui.Dash.smallShape).background(tc.line).pressable(onClick, 0.97f)) {
+            if (art != null) Image(art, null, Modifier.size(w, h), contentScale = ContentScale.Fit)
+            else Box(Modifier.size(w, h), contentAlignment = Alignment.Center) { Icon(DashIcons.music, tc.muted, w / 4) }
         }
     }
 

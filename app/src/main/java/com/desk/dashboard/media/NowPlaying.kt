@@ -149,7 +149,7 @@ class MediaRepo private constructor(private val context: Context) {
             ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
             ?: return null
         if (bmp === artKey) return artCache
-        val max = 320
+        val max = 512 // wide thumbnails are shown up to the tile's full width
         val scaled = if (bmp.width > max || bmp.height > max) {
             val f = max.toFloat() / maxOf(bmp.width, bmp.height)
             bmp.scale((bmp.width * f).toInt().coerceAtLeast(1), (bmp.height * f).toInt().coerceAtLeast(1))
