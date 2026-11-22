@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -102,7 +103,9 @@ private fun androidx.compose.foundation.layout.ColumnScope.Playing(np: NowPlayin
     // Art takes whatever height is left, as a square no wider than the tile.
     BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
         val side = min(maxWidth, maxHeight)
-        Box(Modifier.size(side).background(Dash.line)) {
+        // Tapping the art opens Spotify.
+        val context = LocalContext.current
+        Box(Modifier.size(side).background(Dash.line).clickable { openSpotify(context) }) {
             np.art?.let { Image(it, null, Modifier.size(side), contentScale = ContentScale.Crop) }
         }
     }

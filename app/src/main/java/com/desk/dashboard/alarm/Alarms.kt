@@ -33,8 +33,14 @@ data class AlarmConfig(
     val snoozeMinutes: Int,
     /** Epoch ms of a pending snooze ring, or null. */
     val snoozeAt: Long?,
+    /** One-time: rings at the next [time] and turns itself off; [days] are kept for later. */
+    val once: Boolean = false,
 ) {
-    fun next(from: LocalDateTime = LocalDateTime.now()): LocalDateTime = Alarms.nextOccurrence(time, days, from)
+    /** True when the alarm won't repeat (one-time switch on, or no days picked). */
+    val ringsOnce get() = once || days.isEmpty()
+
+    fun next(from: LocalDateTime = LocalDateTime.now()): LocalDateTime =
+        Alarms.nextOccurrence(time, if (once) emptySet() else days, from)
 }
 
 /**
@@ -48,6 +54,7 @@ object Alarms {
     private val SOUND = stringPreferencesKey("alarm_sound_uri")
     private val SNOOZE_MIN = intPreferencesKey("snooze_minutes")
     private val SNOOZE_AT = longPreferencesKey("alarm_snooze_at")
+    private val ONCE = booleanPreferencesKey("alarm_once")
 
     private val WEEKDAYS = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
     val SNOOZE_CHOICES = listOf(5, 9, 10, 15)
@@ -74,6 +81,7 @@ object Alarms {
             soundUri = p[SOUND],
             snoozeMinutes = p[SNOOZE_MIN] ?: 9,
             snoozeAt = p[SNOOZE_AT]?.takeIf { it > 0 },
+            once = p[ONCE] ?: false,
         )
     }
 
@@ -84,6 +92,7 @@ object Alarms {
     suspend fun setTime(context: Context, t: LocalTime) = edit(context) { it[TIME] = "%02d:%02d".format(t.hour, t.minute) }
     suspend fun setDays(context: Context, days: Set<DayOfWeek>) = edit(context) { it[DAYS] = days.map { d -> d.value.toString() }.toSet() }
     suspend fun setSound(context: Context, uri: String?) = edit(context) { if (uri == null) it.remove(SOUND) else it[SOUND] = uri }
+    suspend fun setOnce(context: Context, once: Boolean) = edit(context) { it[ONCE] = once }
     suspend fun setSnoozeMinutes(context: Context, m: Int) = edit(context) { it[SNOOZE_MIN] = m }
 
     suspend fun snooze(context: Context) {
@@ -94,7 +103,7 @@ object Alarms {
     /** Called when an alarm fires: a one-shot alarm turns itself off; a snooze clears itself. */
     suspend fun onFired(context: Context, wasSnooze: Boolean) = edit(context) {
         if (wasSnooze) it.remove(SNOOZE_AT)
-        else if ((it[DAYS]?.isEmpty() == true)) it[ENABLED] = false
+        else if (it[ONCE] == true || it[DAYS]?.isEmpty() == true) it[ENABLED] = false
     }
 
     private suspend fun edit(context: Context, block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {

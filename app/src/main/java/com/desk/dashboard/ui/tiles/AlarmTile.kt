@@ -73,7 +73,7 @@ fun AlarmTile(modifier: Modifier = Modifier, onOpenSettings: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DAY_ORDER.forEach { d ->
-                        val on = d in c.days
+                        val on = d in c.days && !c.once
                         Box(
                             Modifier.size(22.dp).border(1.dp, if (on) Dash.slate else Dash.line),
                             contentAlignment = Alignment.Center,
@@ -107,7 +107,7 @@ private fun meta(c: AlarmConfig, today: java.time.LocalDate): String {
         today.plusDays(1) -> "tmrw"
         else -> next.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
     }
-    return if (c.days.isEmpty()) "Once · $day" else "On · $day"
+    return if (c.ringsOnce) "Once · $day" else "On · $day"
 }
 
 /**

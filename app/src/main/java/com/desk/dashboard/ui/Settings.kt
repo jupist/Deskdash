@@ -50,6 +50,7 @@ import com.desk.dashboard.data.Keys
 import com.desk.dashboard.system.rememberCalendarPermission
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import com.desk.dashboard.data.Place
@@ -230,13 +231,9 @@ private fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Field("Category", Modifier.weight(1f)) {
-                    Dropdown(form.category, Category.entries, { it.label }, { form.category = it })
-                }
-                Field("Note (optional)", Modifier.weight(1f)) {
-                    TextInput(form.note, { form.note = it }, "Room, reminder, details", UpcomingDate.NOTE_MAX)
-                }
+            // No category picker: the tile shows no tags. Entries keep the stored category (default Other).
+            Field("Note (optional)") {
+                TextInput(form.note, { form.note = it }, "Room, reminder, details", UpcomingDate.NOTE_MAX)
             }
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -440,22 +437,35 @@ private fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
             }
         }
         Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Txt("One-time", Type.bodySmall, Dash.ink)
+                Spacer(Modifier.height(2.dp))
+                Txt("Rings once at the next ${"%02d:%02d".format(c.time.hour, c.time.minute)}, then turns off", Type.meta, Dash.muted)
+            }
+            Switch(c.once, onToggle = { scope.launch { Alarms.setOnce(context, !c.once) } })
+        }
+        Spacer(Modifier.height(14.dp))
         Field("Repeat") {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                // Days are kept but don't apply while One-time is on.
+                Modifier.alpha(if (c.once) 0.35f else 1f),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 DayOfWeek.entries.forEach { d ->
                     val on = d in c.days
                     Box(
                         Modifier.size(30.dp)
                             .background(if (on) Dash.slate else Color.Transparent)
                             .border(1.dp, if (on) Dash.slate else Dash.line)
-                            .clickable { scope.launch { Alarms.setDays(context, if (on) c.days - d else c.days + d) } },
+                            .clickable(enabled = !c.once) { scope.launch { Alarms.setDays(context, if (on) c.days - d else c.days + d) } },
                         contentAlignment = Alignment.Center,
                     ) {
                         Txt(d.name.take(1), Type.meta.copy(fontSize = 11.sp), if (on) Dash.onSlate else Dash.muted)
                     }
                 }
                 Spacer(Modifier.width(6.dp))
-                Txt(if (c.days.isEmpty()) "Rings once" else "", Type.meta, Dash.muted)
+                Txt(if (c.days.isEmpty() && !c.once) "Rings once" else "", Type.meta, Dash.muted)
             }
         }
         Spacer(Modifier.height(14.dp))

@@ -87,7 +87,7 @@ Each tile reads from one source and has an empty or error state, so the screen n
 - **Upcoming dates.** Manually entered dates sorted soonest first, first three plus "+N more". Row: day number and month, category tag, title, optional time and note, days left ("today", "tomorrow", "6d"). Rows within 3 days use slate-light for days-left. Entries disappear the day after their date.
 - **Now playing.** Album art, title, artist, progress bar with elapsed/total, prev / play-pause / next. Source: MediaSessionManager.getActiveSessions() via a NotificationListenerService; prefer Spotify (com.spotify.music), else most recently active. Controls via MediaController.TransportControls. Empty: "Nothing playing" with a button that launches Spotify.
 - **Alarm.** The app's own alarm: time, repeat days (M T W T F S S chips), toggle. On schedules next occurrence with AlarmManager.setAlarmClock(); off cancels. When it fires, show a full-screen alarm activity (over lock screen) with large Stop and Snooze, playing the chosen sound on the alarm stream. Reschedule after reboot and after each ring.
-- **Ambient.** Each tap cycles Off → White noise → Rain → Off, shown as large text plus three step dots. White noise generated with AudioTrack; rain is a bundled seamless CC0 loop (~1 min, OGG) via ExoPlayer on repeat. 1 s fade in/out. Stops when the app leaves the foreground.
+- **Ambient.** Each tap cycles Off → Noise → Rain → Off, shown as large text plus three step dots. Noise is soft pink/brown noise generated live (stereo); rain is a real recording (CC BY-SA, see CREDITS.md) prepared offline as a seamless ~45 s loop, decoded once and looped in the same AudioTrack. 1 s fade in/out. Stops when the app leaves the foreground.
 - **Controls (top bar).** Volume (STREAM_MUSIC via AudioManager) and brightness (Settings.System.SCREEN_BRIGHTNESS, mode manual, plus window brightness for instant change) sliders with numeric readouts.
 - **Reading.** "ReadEra" with a circular arrow button; launches org.readera via getLaunchIntentForPackage, else opens its Play Store page.
 - **Lock.** DevicePolicyManager.lockNow() with a device admin receiver using only force-lock. (Alternative: accessibility service GLOBAL_ACTION_LOCK_SCREEN, keeps fingerprint unlock.)
@@ -184,7 +184,7 @@ Ambient state is not saved; always starts Off.
 - [ ] A new Google Calendar event appears on the tile after sync
 - [ ] Play, pause and skip control Spotify while it's in the background
 - [ ] Alarm rings at the set time with the screen off and the app closed, and after a reboot
-- [ ] Ambient button cycles Off, White noise, Rain, Off with no audible gap
+- [ ] Ambient button cycles Off, Noise, Rain, Off with no audible gap
 - [ ] Brightness and volume sliders change the system values immediately
 - [ ] Lock button locks the tablet; ReadEra opens from its tile
 - [ ] Dashboard stays on while charging and dims at the night-mode start time
