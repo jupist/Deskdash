@@ -15,6 +15,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.desk.dashboard.data.DisplaySettings
+import com.desk.dashboard.system.Apps
 import com.desk.dashboard.system.Device
 import com.desk.dashboard.system.rememberBattery
 import com.desk.dashboard.system.rememberMinute
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Ambient.init(this)
+        Apps.refresh(this) // preload the app list so it opens instantly
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
 

@@ -1,7 +1,5 @@
 package com.desk.dashboard.ui
 
-import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -21,26 +19,23 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.desk.dashboard.system.Apps
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-private class LaunchableApp(val label: String, val component: ComponentName, val icon: ImageBitmap)
 
 /** Alphabetical list of launchable apps (home-app mode's way to reach everything else). */
 @Composable
 fun AppsScreen(onDone: () -> Unit) {
     BackHandler(onBack = onDone)
     val context = LocalContext.current
-    val apps by produceState<List<LaunchableApp>?>(null) { value = withContext(Dispatchers.IO) { loadApps(context) } }
+    // Cached list shows at once; a background refresh picks up any changes since.
+    LaunchedEffect(Unit) { Apps.refresh(context) }
+    val apps by Apps.list.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
         Row(
@@ -80,19 +75,4 @@ fun AppsScreen(onDone: () -> Unit) {
             }
         }
     }
-}
-
-private fun loadApps(context: Context): List<LaunchableApp> {
-    val pm = context.packageManager
-    val px = (52 * context.resources.displayMetrics.density).toInt()
-    return pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        .filter { it.activityInfo.packageName != context.packageName }
-        .map { ri ->
-            LaunchableApp(
-                label = ri.loadLabel(pm).toString(),
-                component = ComponentName(ri.activityInfo.packageName, ri.activityInfo.name),
-                icon = ri.loadIcon(pm).toBitmap(px, px).asImageBitmap(),
-            )
-        }
-        .sortedBy { it.label.lowercase() }
 }
