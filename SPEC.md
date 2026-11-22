@@ -117,10 +117,10 @@ Full screen from the top bar's Settings button, closes with Done; every change s
 
 - **Full screen:** sensorLandscape; hide status/nav bars with WindowInsetsControllerCompat, swipe-to-reveal.
 - **Keep awake:** FLAG_KEEP_SCREEN_ON only while charging (and setting on).
-- **Boot:** via home-app mode (HOME category). In home-app mode, tapping the dot icon opens an alphabetical list of installed apps.
+- **Boot:** via home-app mode (HOME category). Tapping the dot icon opens an alphabetical list of installed apps (always, not only in home-app mode; it is how you reach other apps when Desk is home).
 - **Night mode:** between start/end, replace the grid with a large muted clock and next alarm time, window brightness at night level. Tap shows full dashboard for 30 s. Alarm still rings.
 - **Offline:** weather keeps last data with "Updated" time; everything else works offline.
-- **Samsung battery:** prompt once to add the app to Never sleeping apps.
+- **Samsung battery:** prompt once to allow unrestricted battery (system dialog) and open Device care › Battery, one tap from Background usage limits › Never sleeping apps (the list itself needs a system-only permission to open directly).
 
 ## Permissions
 

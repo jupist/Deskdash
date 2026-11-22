@@ -99,9 +99,9 @@ fun SettingsScreen(onDone: () -> Unit) {
                     WeatherSection()
                     AlarmSection(showOverlay = { overlay = it })
                     CalendarSection()
-                    Placeholder("Night mode", 8)
-                    Placeholder("Display", 8)
-                    Placeholder("Permissions", 8)
+                    NightSection(showOverlay = { overlay = it })
+                    DisplaySection()
+                    PermissionsSection()
                 }
             }
         }
@@ -110,17 +110,12 @@ fun SettingsScreen(onDone: () -> Unit) {
 }
 
 @Composable
-private fun Section(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun Section(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth().background(Dash.tile).padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV)) {
         Txt(title.uppercase(), Type.label, Dash.ink)
         Spacer(Modifier.height(14.dp))
         content()
     }
-}
-
-@Composable
-private fun Placeholder(title: String, milestone: Int) = Section(title) {
-    Txt("Arrives in milestone $milestone", Type.bodySmall, Dash.muted)
 }
 
 /** Form state for adding or editing one entry. */

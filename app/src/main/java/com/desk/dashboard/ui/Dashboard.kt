@@ -1,6 +1,7 @@
 package com.desk.dashboard.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,11 +80,12 @@ private fun TopBar(actions: DashActions) {
         Modifier
             .fillMaxWidth()
             .height(Dash.topBar)
-            .padding(horizontal = 8.dp),
+            .padding(end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.padding(4.dp)) { DotGrid() }
-        HSpace(24.dp)
+        // Dot icon: the list of installed apps (how to reach other apps in home-app mode).
+        Box(Modifier.clickable(onClick = actions.openApps).padding(horizontal = 8.dp, vertical = 12.dp)) { DotGrid() }
+        HSpace(16.dp)
         Box(Modifier.width(1.dp).height(26.dp).background(Dash.line))
         HSpace(28.dp)
         BatteryStat()
