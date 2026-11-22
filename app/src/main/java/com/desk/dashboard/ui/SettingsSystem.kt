@@ -149,9 +149,15 @@ fun DisplaySection() {
         }
         SettingRow(
             "Burn-in protection",
-            "For OLED screens: moves everything a few pixels every couple of minutes (the night clock wanders further). LCD screens don't need it.",
+            when (c.burnIn) {
+                "shift" -> "Moves everything a few pixels every couple of minutes (the night clock wanders further)."
+                "grid" -> "Also lights only every other pixel, swapping halves every 30 s, so solid areas wear evenly at half the rate. Looks finely dotted up close."
+                else -> "For OLED screens, which can burn in. LCD screens don't need it."
+            },
         ) {
-            Switch(c.pixelShift, onToggle = { scope.launch { DisplaySettings.setPixelShift(context, !c.pixelShift) } })
+            Segmented(listOf("off", "shift", "grid"), c.burnIn, { when (it) { "off" -> "Off"; "shift" -> "Shift"; else -> "Shift + grid" } }) { v ->
+                scope.launch { DisplaySettings.setBurnIn(context, v) }
+            }
         }
         SettingRow(
             "Use as home app",

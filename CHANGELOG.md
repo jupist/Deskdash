@@ -22,7 +22,7 @@ The dashboard becomes customizable and works on any Android screen.
 - Corner styles, spacing, text size, and three font sets plus your own font files.
 
 **Everything else**
-- Burn-in protection for OLED screens: the picture shifts a few pixels every couple of minutes, the night clock further.
+- Burn-in protection for OLED screens: the picture shifts a few pixels every couple of minutes (the night clock further), and optionally an alternating checkerboard lights only half the pixels at a time, swapping every 30 seconds, so solid areas wear evenly too.
 - Settings rebuilt as a two-pane screen (drill-in pages on phones), with first-run setup.
 - Weather: 7-day detail view, feels-like, humidity, wind, rain chance; search by neighbourhood.
 - Night screen can show the next calendar event and seconds.

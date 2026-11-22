@@ -30,11 +30,14 @@ data class DisplayConfig(
     val nightAlarm: Boolean = true,
     val nightEvent: Boolean = true,
     val nightSeconds: Boolean = false,
-    /** Burn-in protection (OLED): shift the picture a few pixels now and then. */
-    val pixelShift: Boolean = false,
+    /** Burn-in protection (OLED): "off", "shift" (move the picture), or "grid" (move + alternating pixel grid). */
+    val burnIn: String = "off",
     val onboarded: Boolean = false,
 ) {
     /** True when [t] falls in the night window; the window may wrap past midnight. */
+    val pixelShift get() = burnIn != "off"
+    val pixelGrid get() = burnIn == "grid"
+
     fun isNight(t: LocalTime): Boolean {
         if (!nightEnabled || nightStart == nightEnd) return false
         return if (nightStart < nightEnd) t >= nightStart && t < nightEnd
@@ -57,7 +60,8 @@ object DisplaySettings {
     private val nightAlarm = booleanPreferencesKey("night_alarm")
     private val nightEvent = booleanPreferencesKey("night_event")
     private val nightSeconds = booleanPreferencesKey("night_seconds")
-    private val pixelShift = booleanPreferencesKey("pixel_shift")
+    private val pixelShift = booleanPreferencesKey("pixel_shift") // before burn_in existed
+    private val burnIn = stringPreferencesKey("burn_in")
     private val onboarded = booleanPreferencesKey("onboarded")
 
     fun config(context: Context): Flow<DisplayConfig> = context.prefs.data.map { p ->
@@ -77,7 +81,7 @@ object DisplaySettings {
             nightAlarm = p[nightAlarm] ?: true,
             nightEvent = p[nightEvent] ?: true,
             nightSeconds = p[nightSeconds] ?: false,
-            pixelShift = p[pixelShift] ?: false,
+            burnIn = p[burnIn] ?: if (p[pixelShift] == true) "shift" else "off",
             // Installs from before onboarding existed count as set up (they have a weather place).
             onboarded = p[onboarded] ?: (p[Keys.weatherCity] != null),
         )
@@ -103,6 +107,6 @@ object DisplaySettings {
     suspend fun setNightAlarm(c: Context, v: Boolean) = put(c, nightAlarm, v)
     suspend fun setNightEvent(c: Context, v: Boolean) = put(c, nightEvent, v)
     suspend fun setNightSeconds(c: Context, v: Boolean) = put(c, nightSeconds, v)
-    suspend fun setPixelShift(c: Context, v: Boolean) = put(c, pixelShift, v)
+    suspend fun setBurnIn(c: Context, v: String) = put(c, burnIn, v)
     suspend fun setOnboarded(c: Context) = put(c, onboarded, true)
 }
