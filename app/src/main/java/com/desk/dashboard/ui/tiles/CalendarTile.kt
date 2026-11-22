@@ -46,7 +46,7 @@ fun CalendarTile(modifier: Modifier = Modifier) {
     val permission = rememberCalendarPermission()
 
     if (!permission.granted) {
-        Tile("Today", modifier, meta = "Calendar") {
+        Tile("Today", modifier) {
             Spacer(Modifier.height(14.dp))
             Txt("Calendar access is off", Type.body, Dash.muted)
             Spacer(Modifier.weight(1f))
@@ -67,7 +67,7 @@ fun CalendarTile(modifier: Modifier = Modifier) {
         events = CalendarSource.upcoming(context, ids)
     }
 
-    Tile("Today", modifier, meta = "Calendar") {
+    Tile("Today", modifier) {
         val list = events ?: return@Tile
         Spacer(Modifier.height(10.dp))
         if (list.isEmpty()) {

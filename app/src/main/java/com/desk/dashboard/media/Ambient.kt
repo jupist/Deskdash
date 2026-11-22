@@ -41,8 +41,15 @@ object Ambient {
     private var thread: Thread? = null
     private lateinit var app: Context
 
-    /** Call once (MainActivity.onCreate) so the rain file can be read. */
-    fun init(context: Context) { app = context.applicationContext }
+    /** Decoded rain (interleaved stereo), loaded in the background so picking Rain never waits. */
+    @Volatile private var rainPcm: ShortArray? = null
+
+    /** Call once (MainActivity.onCreate): starts decoding the rain file in the background. */
+    fun init(context: Context) {
+        if (::app.isInitialized) return
+        app = context.applicationContext
+        Thread({ rainPcm = loadRain() }, "ambient-load").apply { priority = Thread.MIN_PRIORITY; start() }
+    }
 
     fun cycle() = set(_mode.value.next())
 
@@ -76,14 +83,14 @@ object Ambient {
         val buf = ShortArray(FRAMES * 2)
         val step = (1.0 / (RATE * FADE_S)).toFloat()
         val noise = SoftNoise()
-        var rain: ShortArray? = null // interleaved stereo, loaded on first use
         var rainPos = 0
         var playing = AmbientMode.OFF // what's currently audible
         var gain = 0f
         try {
             while (true) {
-                val want = target
-                if (want == AmbientMode.RAIN && rain == null) rain = loadRain()
+                val rain = rainPcm
+                // Until the rain is decoded, keep playing what's playing rather than going silent.
+                val want = target.let { if (it == AmbientMode.RAIN && rain == null) playing else it }
                 for (i in 0 until FRAMES) {
                     // Fade out whatever is playing before switching; then fade the new one in.
                     if (playing != want) {

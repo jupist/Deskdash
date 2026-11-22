@@ -62,7 +62,7 @@ fun DatesTile(modifier: Modifier = Modifier, onOpenSettings: () -> Unit) {
     val click = modifier.clickable(onClick = onOpenSettings)
 
     if (list.isEmpty()) {
-        Tile("Upcoming", click, meta = "0 dates") {
+        Tile("Upcoming", click) {
             Spacer(Modifier.height(14.dp))
             Txt("No dates yet", Type.body, Dash.muted)
             Spacer(Modifier.weight(1f))
@@ -72,8 +72,7 @@ fun DatesTile(modifier: Modifier = Modifier, onOpenSettings: () -> Unit) {
     }
 
     // The three closest dates fill the tile; the rest are a scroll away.
-    val meta = if (list.size == 1) "1 date" else "${list.size} dates"
-    Tile("Upcoming", click, meta = meta) {
+    Tile("Upcoming", click) {
         Spacer(Modifier.height(6.dp))
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
             val rowH = maxHeight / VisibleRows
