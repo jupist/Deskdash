@@ -82,9 +82,16 @@ object GoogleCalendar {
 
     private suspend fun get(token: String, url: okhttp3.HttpUrl): JsonObject = withContext(Dispatchers.IO) {
         http.newCall(Request.Builder().url(url).header("Authorization", "Bearer $token").build()).execute().use { r ->
+            val text = r.body!!.string()
             if (r.code == 401) error("Google sign-in expired; reconnect in Settings")
-            if (!r.isSuccessful) error("Google Calendar error ${r.code}")
-            json.parseToJsonElement(r.body!!.string()).jsonObject
+            if (!r.isSuccessful) {
+                // Google explains itself in error.message; show that rather than just the code.
+                val why = runCatching {
+                    json.parseToJsonElement(text).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+                error("Google Calendar error ${r.code}" + (why?.let { ": $it" } ?: ""))
+            }
+            json.parseToJsonElement(text).jsonObject
         }
     }
 
@@ -109,8 +116,10 @@ object GoogleCalendar {
     suspend fun events(token: String, account: GoogleAccount, today: LocalDate, lastDay: LocalDate): List<Event> {
         val zone = ZoneId.systemDefault()
         val now = LocalDateTime.now()
-        val from = today.atStartOfDay(zone).toOffsetDateTime().toString()
-        val to = lastDay.plusDays(1).atStartOfDay(zone).toOffsetDateTime().toString()
+        // RFC 3339 with seconds: OffsetDateTime.toString() drops ":00" seconds, which the API rejects (400).
+        val rfc3339 = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
+        val from = today.atStartOfDay(zone).format(rfc3339)
+        val to = lastDay.plusDays(1).atStartOfDay(zone).format(rfc3339)
         val out = mutableListOf<Event>()
         for (cal in account.calendars.filter { it.selected }) {
             val url = "https://www.googleapis.com/calendar/v3/calendars/${java.net.URLEncoder.encode(cal.id, "UTF-8")}/events".toHttpUrl().newBuilder()
