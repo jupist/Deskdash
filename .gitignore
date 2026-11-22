@@ -11,5 +11,4 @@ captures/
 # Release signing secrets
 keystore.properties
 *.jks
-*.keystore
 m1-screenshot.png
