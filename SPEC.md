@@ -1,3 +1,5 @@
+> Original 0.1 design spec, kept for reference. The current app is described in README.md and CHANGELOG.md.
+
 # Tablet Dashboard App — Build Spec
 
 Nov 21, 2026 · Aman Jayesh

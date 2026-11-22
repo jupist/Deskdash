@@ -1,0 +1,24 @@
+# Google Calendar sign-in
+
+Deskdash can read Google Calendar three ways:
+
+1. **On this device** (no setup): if your Google account is on the device, its calendars sync into Android's calendar and appear under *Settings › Calendars › On this device*.
+2. **iCal link** (no setup): in Google Calendar on the web, open *Settings › your calendar › Integrate calendar › Secret address in iCal format*, and paste it into *Add iCal link*.
+3. **Google sign-in**: reads Google Calendar directly with a read-only token. This needs an OAuth client for your build, set up once by whoever builds the APK.
+
+## Setting up sign-in
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (or pick one).
+2. *APIs & Services › Library*: enable **Google Calendar API**.
+3. *APIs & Services › OAuth consent screen*: choose **External**, fill in the app name and your email, add the scope `.../auth/calendar.readonly`, and add yourself under **Test users**. A testing-mode app works for up to 100 test users without Google's verification.
+4. *APIs & Services › Credentials › Create credentials › OAuth client ID*: type **Android**, package name `com.desk.dashboard`, and the **SHA-1** of the key that signs your APK:
+
+   ```bash
+   ./gradlew signingReport
+   ```
+
+   Use the `release` variant's SHA-1 for release builds (the debug SHA-1 for debug builds; you can add both as separate clients).
+
+There's nothing to paste into the app: Google matches the client by package name and signing certificate. Install the build, then *Settings › Calendars › Connect Google account*.
+
+If sign-in says *"This build isn't registered with Google yet (developer error)"*, the package name or SHA-1 doesn't match the client in step 4.

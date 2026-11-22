@@ -1,56 +1,58 @@
 # Deskdash
 
-An always-on desk dashboard for an Android tablet. Clock, calendar, countdowns, weather, music, an alarm and ambient sound on one landscape screen. Built for a Galaxy Tab A7 Lite on a charger, beside a desk or bed.
+A customizable, always-on dashboard for an Android tablet or phone on your desk. Clock, calendar, weather, music, alarm, timers and more, arranged as tiles you can move, resize and restyle. Runs as an app or as your home screen.
 
 ![Dashboard](docs/dashboard.png)
 
 ## Features
 
-- **Clock** that changes exactly on the minute.
-- **Today:** the next few events from the calendars on the device (Google, Samsung and others), each with its own on/off.
-- **Upcoming:** your own countdown list (exams, deadlines, trips). The three closest fill the tile; the rest scroll.
-- **Weather** from [Open-Meteo](https://open-meteo.com) (no API key) for any city or neighbourhood: the current temperature, today's high and low, and five days ahead. The last forecast stays on screen when you're offline.
-- **Now playing:** album art, progress and controls for Spotify or any other player, even while it's in the background. When nothing is playing, one tap resumes your last Spotify track.
-- **Alarm:** rings over the lock screen and from standby. It has repeat days, a one-time option, snooze, and survives reboots.
-- **Ambient sound:** a real rain recording, or soft noise, both looping without a gap.
-- **Night mode:** a dim clock showing your next alarm during the hours you choose. Tap it to see the dashboard for 30 seconds.
-- **Home-app mode:** starts on boot and opens on Home. The dot icon lists your apps, themed to your palette.
-- Volume and brightness sliders, a Lock button, a ReadEra shortcut, and keeps the screen on while charging.
+- **Your layout:** long-press any tile to rearrange it. Drag to move, drag the corner to resize, tap for its settings. The grid fits any screen, in portrait or landscape, and you can save layouts as presets.
+- **Tiles:** clock, agenda, countdowns, weather, now playing, alarm, timer (countdown, stopwatch and focus), checklist, sticky note, world clocks, photo frame, quote of the day, ambient sound, system status, volume and brightness controls, and app shortcuts.
+- **Calendars:** events from calendars synced to the device, iCal links, imported .ics files, or Google sign-in, all in one agenda.
+- **Weather** for any city or neighbourhood from [Open-Meteo](https://open-meteo.com), with no account or API key. Tap the tile for a 7-day forecast.
+- **Alarm and timers** ring over the lock screen, survive reboots, and the alarm has snooze.
+- **Night mode** dims the screen to a large clock with your next alarm and event, between hours you choose.
+- **Your look:** five themes (one taken from your wallpaper), each in dark or light; three font sets or your own font files; plus corner style, spacing and text size.
+- **Built for a stand:** keeps the screen on while charging, can be the home app, has an app list behind the dot icon, and works offline.
 
-| Night mode | Settings | Apps |
+| Edit mode | Settings | Night mode |
 |---|---|---|
-| ![Night mode](docs/night.png) | ![Settings](docs/settings.png) | ![App list](docs/apps.png) |
+| ![Edit mode](docs/edit.png) | ![Settings](docs/settings.png) | ![Night mode](docs/night.png) |
 
-## Build and install
+## Install
 
-You need JDK 17 or newer, the Android SDK (platform 35), and `adb`. Android Studio is optional.
+Build it yourself (below), or download the APK from [Releases](https://github.com/jupist/Deskdash/releases) or the latest [Build](https://github.com/jupist/Deskdash/actions) run. Needs Android 11 or newer.
+
+## Build
+
+You need JDK 17 or newer, the Android SDK (platform 35) and `adb`. Android Studio is optional.
 
 ```bash
 echo "sdk.dir=$HOME/Android/Sdk" > local.properties   # or set ANDROID_HOME
-./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Runs on Android 11 or newer, on a landscape tablet. The layout is tuned for 1340 × 800.
+To sign release builds with your own key, add a `keystore.properties` file in the project root; it's git-ignored:
+
+```properties
+storeFile=deskdash.jks
+storePassword=…
+keyAlias=deskdash
+keyPassword=…
+```
+
+Without it, release builds are signed with the debug key. Run the unit tests with `./gradlew test`.
 
 ## First run
 
-Open **Settings** on the dashboard. Its **Permissions** section lists each permission the app uses, with a Grant button for any it doesn't have yet:
+A short setup walks you through theme, weather location, calendars and permissions; you can skip any step. Everything is in **Settings** afterwards, where **Permissions** shows what's granted and what each permission is for. On Samsung devices, also add Deskdash to *Battery › Background usage limits › Never sleeping apps*.
 
-| Permission | Used for |
-|---|---|
-| Calendar | Today tile |
-| Notification access | Now playing |
-| Modify system settings | Brightness slider |
-| Notifications, full-screen alerts | The alarm, including over the lock screen |
-| Device admin (lock only) | Lock button. Turn it off before uninstalling. |
-| Unrestricted battery | Stops Android from putting the app to sleep |
-
-On Samsung, also add Desk to **Battery › Background usage limits › Never sleeping apps**. Then set it as the home app under **Display › Use as home app**.
+To use Google sign-in for calendars, the build needs an OAuth client; see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md). iCal links and device calendars need no setup.
 
 ## Project
 
-- Kotlin and Jetpack Compose in a single activity, with no Material components.
-- Room stores the dates; DataStore stores settings.
-- [`SPEC.md`](SPEC.md) is the full design spec, and [`mockup.html`](mockup.html) is the original visual mockup.
-- Sound and font credits are in [`CREDITS.md`](CREDITS.md).
+- Kotlin and Jetpack Compose in a single activity, using Compose foundation only (no Material).
+- `board/` holds the grid, the layout logic and the editor. `modules/` has one file per group of tiles. `calendar/` merges the event sources.
+- Layouts and presets are saved as JSON, settings in DataStore, countdowns in Room.
+- [`CHANGELOG.md`](CHANGELOG.md) lists what changed. [`SPEC.md`](SPEC.md) and [`mockup.html`](mockup.html) are the original 0.1 design, and [`CREDITS.md`](CREDITS.md) lists data, sound and font sources.

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -148,7 +149,7 @@ fun Overlay(onDismiss: () -> Unit, width: Dp, content: @Composable ColumnScope.(
     Box(
         Modifier.fillMaxSize().background(Dash.scrim).clickable(
             interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss,
-        ).padding(16.dp),
+        ).imePadding().padding(16.dp), // stays above the keyboard
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.animation.AnimatedVisibility(
