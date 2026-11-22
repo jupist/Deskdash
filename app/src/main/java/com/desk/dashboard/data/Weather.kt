@@ -30,7 +30,13 @@ import java.util.concurrent.TimeUnit
 // ---- Open-Meteo responses (only the fields we use) ----
 
 @Serializable
-data class Forecast(val current: Current, val daily: Daily, val hourly: Hourly? = null) {
+data class Forecast(
+    val current: Current, val daily: Daily, val hourly: Hourly? = null,
+    @SerialName("current_units") val currentUnits: Map<String, String> = emptyMap(),
+) {
+    /** "km/h" or "mph", as the forecast was fetched. */
+    val windUnit get() = currentUnits["wind_speed_10m"]?.let { if (it == "mp/h") "mph" else it } ?: "km/h"
+
     @Serializable
     data class Hourly(
         val time: List<String>,

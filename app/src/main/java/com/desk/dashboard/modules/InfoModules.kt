@@ -191,7 +191,7 @@ private fun WeatherDetail(f: Forecast, city: String?, stale: Boolean, onClose: (
                     listOfNotNull(
                         f.current.feels?.let { "Feels ${it.roundToInt()}°" },
                         f.current.humidity?.let { "Humidity ${it.roundToInt()}%" },
-                        f.current.wind?.let { "Wind ${it.roundToInt()}" },
+                        f.current.wind?.let { "Wind ${it.roundToInt()} ${f.windUnit}" },
                     ).joinToString(" · "),
                     Type.meta, Dash.muted,
                 )
@@ -231,8 +231,8 @@ private fun WeatherDetail(f: Forecast, city: String?, stale: Boolean, onClose: (
                 Icon(skyIcon(f.daily.code.getOrElse(i) { 3 }), Dash.ink, 18.dp)
                 Spacer(Modifier.width(10.dp))
                 Txt(conditionWord(f.daily.code.getOrElse(i) { 3 }), Type.bodySmall, Dash.muted, Modifier.weight(1f))
-                f.daily.rain.getOrNull(i)?.let { Txt("$it%", Type.meta, Dash.accentText, Modifier.width(44.dp)) }
-                Txt("${f.daily.max[i].roundToInt()}° / ${f.daily.min[i].roundToInt()}°", Type.body, Dash.ink)
+                Txt(f.daily.rain.getOrNull(i)?.let { "$it%" } ?: "", Type.meta.copy(textAlign = TextAlign.End), Dash.accentText, Modifier.width(44.dp))
+                Txt("${f.daily.max[i].roundToInt()}° / ${f.daily.min[i].roundToInt()}°", Type.body.copy(textAlign = TextAlign.End), Dash.ink, Modifier.width(118.dp))
             }
         }
     }
