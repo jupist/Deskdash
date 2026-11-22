@@ -13,6 +13,25 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.LocalDate
 
+/** A fetched Google event as stored on disk (so the agenda has it after a restart or offline). */
+@Serializable
+private data class StoredEvent(
+    val key: String, val title: String, val start: String, val end: String, val allDay: Boolean,
+    val color: Int? = null, val calendar: String, val location: String? = null, val link: String? = null,
+) {
+    fun toEvent() = Event(
+        key, title, java.time.LocalDateTime.parse(start), java.time.LocalDateTime.parse(end), allDay, color, calendar, location,
+        link?.let { OpenTarget.Link(it) } ?: OpenTarget.None,
+    )
+
+    companion object {
+        fun of(e: Event) = StoredEvent(
+            e.key, e.title, e.start.toString(), e.end.toString(), e.allDay, e.color, e.calendar, e.location,
+            (e.open as? OpenTarget.Link)?.url,
+        )
+    }
+}
+
 @Serializable
 data class CalendarSources(val feeds: List<IcsFeed> = emptyList(), val google: GoogleAccount? = null)
 
@@ -39,12 +58,23 @@ object CalendarHub {
     private val lock = Mutex()
 
     private fun file(c: Context) = File(c.filesDir, "calendars.json")
+    private fun googleFile(c: Context) = File(c.filesDir, "google_events.json")
 
     @Synchronized
     fun load(c: Context) {
         if (loaded) return
         loaded = true
         _sources.value = runCatching { json.decodeFromString<CalendarSources>(file(c).readText()) }.getOrDefault(CalendarSources())
+        if (_sources.value.google != null) {
+            googleEvents = runCatching {
+                json.decodeFromString<List<StoredEvent>>(googleFile(c).readText()).map { it.toEvent() }
+            }.getOrDefault(emptyList())
+        }
+    }
+
+    private fun setGoogleEvents(c: Context, events: List<Event>) {
+        googleEvents = events
+        runCatching { googleFile(c).writeText(json.encodeToString(events.map(StoredEvent::of))) }
     }
 
     private fun save(c: Context, s: CalendarSources) {
@@ -85,7 +115,7 @@ object CalendarHub {
             }
             if (feeds != _sources.value.feeds) update(c) { it.copy(feeds = feeds) }
             val g = _sources.value.google
-            if (g != null && (force || now - g.lastSync > GOOGLE_EVERY_MS || googleEvents.isEmpty())) syncGoogle(c, g)
+            if (g != null && (force || now - g.lastSync > GOOGLE_EVERY_MS)) syncGoogle(c, g)
         } finally {
             _syncing.value = false
         }
@@ -95,7 +125,7 @@ object CalendarHub {
         when (val auth = GoogleCalendar.authorize(c)) {
             is GoogleCalendar.Auth.Token -> runCatching {
                 val acc = GoogleCalendar.account(auth.token, g)
-                googleEvents = GoogleCalendar.events(auth.token, acc, LocalDate.now(), LocalDate.now().plusDays(MAX_DAYS - 1L))
+                setGoogleEvents(c, GoogleCalendar.events(auth.token, acc, LocalDate.now(), LocalDate.now().plusDays(MAX_DAYS - 1L)))
                 update(c) { it.copy(google = acc) }
             }.onFailure { e -> update(c) { it.copy(google = g.copy(error = e.message, lastSync = System.currentTimeMillis())) } }
             is GoogleCalendar.Auth.NeedsConsent -> update(c) { it.copy(google = g.copy(error = "Access needs approving again: reconnect")) }
@@ -133,7 +163,7 @@ object CalendarHub {
     suspend fun connectGoogle(c: Context, token: String): String? = runCatching {
         load(c)
         val acc = GoogleCalendar.account(token, _sources.value.google)
-        googleEvents = GoogleCalendar.events(token, acc, LocalDate.now(), LocalDate.now().plusDays(MAX_DAYS - 1L))
+        setGoogleEvents(c, GoogleCalendar.events(token, acc, LocalDate.now(), LocalDate.now().plusDays(MAX_DAYS - 1L)))
         update(c) { it.copy(google = acc) }
         null
     }.getOrElse { it.message ?: "Couldn't reach Google Calendar" }
@@ -143,8 +173,15 @@ object CalendarHub {
     }
 
     fun disconnectGoogle(c: Context) {
-        googleEvents = emptyList()
+        setGoogleEvents(c, emptyList())
         update(c) { it.copy(google = null) }
+    }
+
+    /** Adds iCal subscriptions from a backup (skipping links already present) and syncs them. */
+    suspend fun restoreFeeds(c: Context, feeds: List<IcsFeed>) {
+        load(c)
+        val have = _sources.value.feeds.mapNotNull { it.url }.toSet()
+        for (f in feeds) if (f.url != null && f.url !in have) addSubscription(c, f.name, f.url)
     }
 
     /** Device calendar selection changed (stored elsewhere): reload tiles. */

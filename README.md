@@ -7,13 +7,14 @@ A customizable, always-on dashboard for an Android tablet or phone on your desk.
 ## Features
 
 - **Your layout:** long-press any tile to rearrange it. Drag to move, drag the corner to resize, tap for its settings. The grid fits any screen, in portrait or landscape, and you can save layouts as presets.
-- **Tiles:** clock, agenda, countdowns, weather, now playing, alarm, timer (countdown, stopwatch and focus), checklist, sticky note, world clocks, photo frame, quote of the day, ambient sound, system status, volume and brightness controls, and app shortcuts.
+- **Tiles:** clock, agenda, countdowns, weather, now playing (any music app), alarm, timer (countdown, stopwatch and focus), checklist, sticky note, world clocks, photo frame, quote of the day, favourite and recent apps, ambient sound, system status, volume and brightness controls, and app shortcuts.
 - **Calendars:** events from calendars synced to the device, iCal links, imported .ics files, or Google sign-in, all in one agenda.
-- **Weather** for any city or neighbourhood from [Open-Meteo](https://open-meteo.com), with no account or API key. Tap the tile for a 7-day forecast.
+- **Weather** for your location or any city or neighbourhood from [Open-Meteo](https://open-meteo.com), with no account or API key. Tap the tile for the next 24 hours and 7 days.
 - **Alarm and timers** ring over the lock screen, survive reboots, and the alarm has snooze.
 - **Night mode** dims the screen to a large clock with your next alarm and event, between hours you choose.
 - **Your look:** five themes (one taken from your wallpaper), each in dark or light; three font sets or your own font files; plus corner style, spacing and text size.
-- **Built for a stand:** keeps the screen on while charging, can be the home app, has an app list behind the dot icon, and works offline.
+- **Built for a stand:** keeps the screen on while charging, can be the home app or the screensaver, has an app list behind the dot icon, and works offline.
+- **Backup:** export your whole setup to a file and import it on another device.
 
 | Edit mode | Settings | Night mode |
 |---|---|---|

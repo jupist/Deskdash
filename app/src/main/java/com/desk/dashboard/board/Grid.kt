@@ -86,6 +86,22 @@ object Grid {
     }
 
     /**
+     * Like [move], but tiles in the way are pushed aside: each moves, at its size, to the free
+     * spot nearest where it was. Null if the target is off the grid or a pushed tile has nowhere
+     * to go.
+     */
+    fun movePush(tiles: List<TileSpec>, moving: TileSpec, nx: Int, ny: Int, cols: Int, rows: Int): List<TileSpec>? {
+        move(tiles, moving, nx, ny, cols, rows)?.let { return it }
+        val target = moving.at(nx, ny)
+        if (!inBounds(target, cols, rows)) return null
+        val hit = tiles.filter { it.id != moving.id && it.overlaps(target) }.sortedWith(compareBy({ it.y }, { it.x }))
+        val placed = (tiles.filter { it.id != moving.id && it !in hit } + target).toMutableList()
+        for (t in hit) placed += nearestFree(placed, t, cols, rows) ?: return null
+        val byId = placed.associateBy { it.id }
+        return tiles.map { byId[it.id] ?: it }
+    }
+
+    /**
      * Resizes [t] towards [nw]×[nh], clamped to [minSize] and the grid, shrinking back until it
      * no longer overlaps anything. Returns the largest valid size (at least the current one).
      */

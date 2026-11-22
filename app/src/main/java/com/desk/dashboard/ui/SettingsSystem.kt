@@ -160,6 +160,12 @@ fun DisplaySection() {
             }
         }
         SettingRow(
+            "Screensaver",
+            "Show the dashboard (view-only) as Android's screensaver while charging; pick Deskdash on the next screen",
+        ) {
+            MiniButton("Set", Dash.ink) { Device.open(context, android.content.Intent(android.provider.Settings.ACTION_DREAM_SETTINGS)) }
+        }
+        SettingRow(
             "Use as home app",
             if (home) "Deskdash is the home app: it opens on boot and Home; the dot icon lists apps"
             else "Opens on boot and on Home. Choose Deskdash on the next screen",
@@ -194,6 +200,9 @@ fun PermissionsSection() {
         PermRow("Device admin", "Lock button (turn off before uninstalling)", s.admin) {
             Device.open(context, Lock.askIntent(context))
         }
+        PermRow("Usage access", "Recent apps tile", s.usage) {
+            Device.open(context, com.desk.dashboard.modules.UsageAccess.intent(context))
+        }
         PermRow("Unrestricted battery", "Keeps Deskdash running in the background", s.battery) {
             Device.open(context, Device.batteryExemptionIntent(context))
         }
@@ -218,6 +227,7 @@ private fun pkg(context: Context) = Uri.parse("package:${context.packageName}")
 /** Permissions granted on system pages rather than by a runtime dialog. */
 private class SpecialAccess(
     val listener: Boolean, val writeSettings: Boolean, val fullScreen: Boolean, val admin: Boolean, val battery: Boolean,
+    val usage: Boolean,
 ) {
     companion object {
         fun read(c: Context) = SpecialAccess(
@@ -226,6 +236,7 @@ private class SpecialAccess(
             fullScreen = c.getSystemService(NotificationManager::class.java).canUseFullScreenIntent(),
             admin = Lock.isEnabled(c),
             battery = Device.isIgnoringBatteryOptimizations(c),
+            usage = com.desk.dashboard.modules.UsageAccess.granted(c),
         )
     }
 }

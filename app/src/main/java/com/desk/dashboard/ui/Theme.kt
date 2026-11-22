@@ -158,6 +158,9 @@ data class Appearance(
 object Look {
     var palette by mutableStateOf(Palettes.slate.dark)
         private set
+    /** The theme's dark variant: the night screen is always dark, whatever the mode. */
+    var nightPalette by mutableStateOf(Palettes.slate.dark)
+        private set
     var fonts by mutableStateOf(Fonts.technical)
         private set
     var corners by mutableStateOf(Corners.SQUARE)
@@ -180,6 +183,7 @@ object Look {
         var p = if (dark) family.dark else family.light
         if (dark && a.pureBlack) p = p.copy(frame = Color.Black, tile = Color(0xFF0B0B0C), line = Color(0xFF222225))
         palette = p
+        nightPalette = family.dark
         corners = a.corners
         spacing = a.spacing
         textScale = a.textScale

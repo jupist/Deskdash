@@ -77,4 +77,18 @@ class GridTest {
         val from = GridLayout(6, 4, listOf(t("a", 1, 1, 2, 2)))
         assertNotNull(Grid.adapt(from, 6, 4, min).first.tiles.single { it.x == 1 && it.y == 1 })
     }
+
+    @Test fun movePushRelocatesTilesInTheWay() {
+        val tiles = listOf(t("a", 0, 0, 2, 1), t("b", 2, 0, 1, 1), t("c", 0, 1, 1, 1))
+        // "a" (2 wide) onto "b"'s cell and the one after it: "b" moves to the nearest free spot.
+        val r = Grid.movePush(tiles, tiles[0], 2, 0, 4, 2)!!
+        val a = r.first { it.id == "a" }
+        val b = r.first { it.id == "b" }
+        assertEquals(2 to 0, a.x to a.y)
+        assertTrue(Grid.fits(b, r, 4, 2))
+        assertFalse(a.overlaps(b))
+        // A full grid where the pushed tile is bigger than the space the mover leaves: refused.
+        val full = listOf(t("s", 0, 0, 1, 1), t("w", 1, 0, 2, 1), t("x", 0, 1, 1, 1), t("y", 1, 1, 2, 1))
+        assertNull(Grid.movePush(full, full[0], 1, 0, 3, 2))
+    }
 }

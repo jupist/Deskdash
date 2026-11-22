@@ -44,9 +44,9 @@ import java.util.Locale
 
 private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
 
-/** Dim colours: readable in a dark room at 2 % brightness without lighting it up. */
-private val NightInk = Color(0xFF6E6E6A)
-private val NightMuted = Color(0xFF45454A)
+/** Dim colours from the theme: readable in a dark room at low brightness without lighting it up. */
+private val NightInk get() = Look.nightPalette.ink.copy(alpha = 0.45f)
+private val NightMuted get() = Look.nightPalette.accentText.copy(alpha = 0.4f)
 
 /**
  * Night mode: a large muted clock, sized to the screen, with the next alarm and event under it.
@@ -57,7 +57,7 @@ fun NightScreen(cfg: DisplayConfig?, onTap: () -> Unit) {
     val context = LocalContext.current
     val seconds = cfg?.nightSeconds == true
     val now = if (seconds) rememberSecond().value else rememberMinute().value
-    val alarm by remember { Alarms.config(context) }.collectAsStateWithLifecycle(null)
+    val alarm by remember { Alarms.config(context) }.collectAsStateWithLifecycle(Alarms.cached)
     var next by remember { mutableStateOf<Event?>(null) }
     val minute = now.withSecond(0)
     LaunchedEffect(minute, cfg?.nightEvent) {

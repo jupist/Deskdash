@@ -11,6 +11,8 @@ import com.desk.dashboard.modules.ChecklistModule
 import com.desk.dashboard.modules.ClockModule
 import com.desk.dashboard.modules.ControlsModule
 import com.desk.dashboard.modules.CountdownModule
+import com.desk.dashboard.modules.FavouriteAppsModule
+import com.desk.dashboard.modules.RecentAppsModule
 import com.desk.dashboard.modules.MusicModule
 import com.desk.dashboard.modules.NoteModule
 import com.desk.dashboard.modules.PhotoModule
@@ -119,7 +121,7 @@ object Modules {
         listOf(
             ClockModule, AgendaModule, CountdownModule, WeatherModule, MusicModule, AlarmModule,
             TimerModule, ChecklistModule, NoteModule, WorldClockModule, PhotoModule, QuoteModule,
-            AmbientModule, ShortcutModule, SystemModule, ControlsModule,
+            FavouriteAppsModule, RecentAppsModule, AmbientModule, ShortcutModule, SystemModule, ControlsModule,
         )
     }
 

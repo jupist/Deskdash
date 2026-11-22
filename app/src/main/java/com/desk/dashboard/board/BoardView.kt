@@ -111,7 +111,7 @@ fun BoardView(
         fun moveTarget(d: Drag): Pair<TileSpec, List<TileSpec>?> {
             val nx = (d.start.x + d.offset.x / stepX).roundToInt().coerceIn(0, cols - d.start.w)
             val ny = (d.start.y + d.offset.y / stepY).roundToInt().coerceIn(0, rows - d.start.h)
-            return d.start.at(nx, ny) to Grid.move(currentLayout.tiles, d.start, nx, ny, cols, rows)
+            return d.start.at(nx, ny) to Grid.movePush(currentLayout.tiles, d.start, nx, ny, cols, rows)
         }
 
         fun resizeTarget(d: Drag): TileSpec {
@@ -147,9 +147,10 @@ fun BoardView(
             }
         }
 
-        // Drop preview while moving.
-        drag?.takeIf { it.kind == DragKind.MOVE }?.let { d ->
-            val (target, result) = moveTarget(d)
+        // While moving: where it would land, and where the tiles it pushes aside would go.
+        val movePreview = drag?.takeIf { it.kind == DragKind.MOVE }?.let { moveTarget(it) }
+        val pushed = movePreview?.second?.associateBy { it.id }
+        movePreview?.let { (target, result) ->
             val o = origin(target.x, target.y)
             val s = size(target.w, target.h)
             Box(
@@ -162,7 +163,11 @@ fun BoardView(
         for (spec in layout.tiles) key(spec.id) {
             val module = Modules.get(spec.type)
             val d = drag?.takeIf { it.id == spec.id }
-            val shown = if (d?.kind == DragKind.RESIZE) resizeTarget(d) else spec
+            val shown = when {
+                d?.kind == DragKind.RESIZE -> resizeTarget(d)
+                d == null && pushed != null -> pushed[spec.id] ?: spec // other tiles make room live
+                else -> spec
+            }
             val targetOrigin = origin(shown.x, shown.y)
             val targetSize = size(shown.w, shown.h)
             val pos = remember { Animatable(targetOrigin, IntOffset.VectorConverter) }

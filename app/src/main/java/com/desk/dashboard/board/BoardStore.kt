@@ -124,6 +124,11 @@ object BoardStore {
         save(Boards(rest, if (b.activeId == id) rest.first().id else b.activeId))
     }
 
+    /** Replaces every preset (restoring a backup). */
+    fun replaceAll(b: Boards) {
+        if (b.presets.isNotEmpty()) save(if (b.presets.any { it.id == b.activeId }) b else b.copy(activeId = b.presets.first().id))
+    }
+
     /** Forgets every saved size of the active preset, so it falls back to the default layout. */
     fun resetActive() = updateActive { it.copy(layouts = emptyMap(), lastKey = null) }
 }

@@ -46,6 +46,12 @@ class DeskApp : Application() {
         runBlocking { Look.apply(this@DeskApp, appearance.first()) }
         scope.launch { appearance.collect { Look.apply(this@DeskApp, it) } }
         BoardStore.init(this, scope)
+        // Warm what the first frame shows, so it draws complete rather than filling in.
+        runBlocking { runCatching { com.desk.dashboard.data.DisplaySettings.config(this@DeskApp).first() } }
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.desk.dashboard.alarm.Alarms.config(this@DeskApp).first() }
+            com.desk.dashboard.data.WeatherRepo.get(this@DeskApp).loadCache()
+        }
         Ambient.init(this)
         Apps.refresh(this) // preload the app list so it opens instantly
     }

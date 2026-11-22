@@ -224,6 +224,30 @@ internal fun WeatherSection() {
     var results by remember { mutableStateOf<List<Place>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
 
+    // "Use my location": approximate location is plenty for weather.
+    fun fetchHere() {
+        if (!com.desk.dashboard.system.DeviceLocation.enabled(context)) {
+            status = "Location is off in the device's settings"
+            return
+        }
+        status = "Finding your location…"
+        scope.launch {
+            val fix = com.desk.dashboard.system.DeviceLocation.current(context)
+            status = if (fix == null) "Couldn't get a location. Try again, or search instead" else {
+                repo.setCity(repo.placeAt(fix.latitude, fix.longitude))
+                null
+            }
+        }
+    }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) fetchHere() else status = "Location permission denied. Search for a place instead"
+    }
+    val locate = {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) fetchHere() else locationPermission.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+
     // Debounced search as the user types.
     LaunchedEffect(query) {
         results = emptyList()
@@ -243,7 +267,10 @@ internal fun WeatherSection() {
             Txt(city ?: "Not set", Type.body, if (city == null) Dash.muted else Dash.ink, Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
-        TextInput(query, { query = it }, "Search a city or area, e.g. Gachibowli", 60)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { TextInput(query, { query = it }, "Search a city or area, e.g. Gachibowli", 60) }
+            MiniButton("Use my location", Dash.ink, Dash.accent) { locate() }
+        }
         status?.let {
             Spacer(Modifier.height(8.dp))
             Txt(it, Type.meta, Dash.muted)
@@ -349,7 +376,7 @@ private fun Checkbox(checked: Boolean) {
 internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(null)
+    val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(Alarms.cached)
     val c = cfg ?: return
 
     val soundPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->

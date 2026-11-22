@@ -65,9 +65,9 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
-fun skyIcon(code: Int): ImageVector = when (skyOf(code)) {
-    Sky.CLEAR -> DashIcons.sun
-    Sky.PARTLY -> DashIcons.partly
+fun skyIcon(code: Int, day: Boolean = true): ImageVector = when (skyOf(code)) {
+    Sky.CLEAR -> if (day) DashIcons.sun else DashIcons.moon
+    Sky.PARTLY -> if (day) DashIcons.partly else DashIcons.moon
     Sky.CLOUD -> DashIcons.cloud
     Sky.FOG -> DashIcons.fog
     Sky.RAIN -> DashIcons.rain
@@ -119,7 +119,7 @@ object WeatherModule : Module(
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
                     Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.Bottom) {
                         if (boxW > 90.dp) {
-                            Icon(skyIcon(f.current.code), ink, 22.dp, Modifier.padding(bottom = 10.dp, end = 8.dp))
+                            Icon(skyIcon(f.current.code, f.current.isDay == 1), ink, 22.dp, Modifier.padding(bottom = 10.dp, end = 8.dp))
                         }
                         FitText("${f.current.temp.roundToInt()}°", Type.big, ink, Modifier.weight(1f).fillMaxHeight(), sample = "-00°", maxSize = 72f)
                         if (boxW > 140.dp && f.daily.max.isNotEmpty()) {
@@ -181,7 +181,7 @@ private fun WeatherDetail(f: Forecast, city: String?, stale: Boolean, onClose: (
     Overlay(onDismiss = onClose, width = 520.dp) {
         PanelHeader(city ?: "Weather", onClose)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(skyIcon(f.current.code), Dash.ink, 34.dp)
+            Icon(skyIcon(f.current.code, f.current.isDay == 1), Dash.ink, 34.dp)
             Spacer(Modifier.width(14.dp))
             Txt("${f.current.temp.roundToInt()}°", Type.big, Dash.ink)
             Spacer(Modifier.width(16.dp))
@@ -200,6 +200,28 @@ private fun WeatherDetail(f: Forecast, city: String?, stale: Boolean, onClose: (
         if (stale) {
             Spacer(Modifier.height(6.dp))
             Txt("Offline: showing the last forecast", Type.meta, Dash.danger)
+        }
+        f.hourly?.let { h ->
+            // The next 24 hours, from the current hour.
+            val nowHour = java.time.LocalDateTime.now().withMinute(0).withSecond(0).withNano(0)
+            val hours = h.time.indices.filter { runCatching { !java.time.LocalDateTime.parse(h.time[it]).isBefore(nowHour) }.getOrDefault(false) }.take(24)
+            if (hours.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    items(hours.size) { k ->
+                        val i = hours[k]
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Txt(if (k == 0) "NOW" else h.time[i].substring(11, 13), Type.small, Dash.muted)
+                            Spacer(Modifier.height(6.dp))
+                            Icon(skyIcon(h.code.getOrElse(i) { 3 }, h.isDay.getOrElse(i) { 1 } == 1), Dash.ink, 16.dp)
+                            Spacer(Modifier.height(6.dp))
+                            Txt("${h.temp[i].roundToInt()}°", Type.body, Dash.ink)
+                            val r = h.rain.getOrNull(i) ?: 0
+                            Txt(if (r >= 10) "$r%" else " ", Type.small, Dash.accentText)
+                        }
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(14.dp))
         f.daily.dates.forEachIndexed { i, d ->

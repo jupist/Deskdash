@@ -94,8 +94,8 @@ private fun AlarmScreen(label: String, snoozeMinutes: Int?, onStop: () -> Unit, 
 @Composable
 private fun BigButton(text: String, fill: Color, ink: Color, outline: Color?, modifier: Modifier, onClick: () -> Unit) {
     Box(
-        modifier.fillMaxHeight().background(fill)
-            .let { if (outline != null) it.border(1.dp, outline) else it }
+        modifier.fillMaxHeight().clip(Dash.shape).background(fill)
+            .let { if (outline != null) it.border(1.dp, outline, Dash.shape) else it }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

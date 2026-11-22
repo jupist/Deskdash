@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -61,6 +63,7 @@ private val pages = listOf(
     Page("night", "Night mode", DashIcons.moon, "Schedule and dim clock"),
     Page("display", "Display & power", DashIcons.phone, "Screen on, home app"),
     Page("permissions", "Permissions", DashIcons.shield, "What Deskdash can access"),
+    Page("backup", "Backup", DashIcons.file, "Export and import your setup"),
     Page("about", "About", DashIcons.info, "Version and credits"),
 )
 
@@ -159,6 +162,7 @@ private fun PageContent(id: String, showOverlay: ((@Composable () -> Unit)?) -> 
         }
         "display" -> DisplaySection()
         "permissions" -> PermissionsSection()
+        "backup" -> BackupPage(showOverlay)
         "about" -> AboutPage()
     }
 }
@@ -265,6 +269,55 @@ private fun HoldButton(text: String, onHold: (Boolean) -> Unit) {
             }
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
+}
+
+@Composable
+private fun BackupPage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            status = runCatching { com.desk.dashboard.data.Backup.export(context, uri) }
+                .fold({ "Exported" }, { "Export failed: ${it.message}" })
+        }
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) showOverlay {
+            Overlay(onDismiss = { showOverlay(null) }, width = 460.dp) {
+                PanelHeader("Replace your setup?", { showOverlay(null) })
+                Txt(
+                    "Your presets and layouts, settings and alarm are replaced with the backup's. Countdowns and iCal links " +
+                        "from the backup are added to yours.",
+                    Type.body, Dash.muted, maxLines = 4,
+                )
+                Spacer(Modifier.height(16.dp))
+                Row { Spacer(Modifier.weight(1f)); PrimaryButton("Import") {
+                    showOverlay(null)
+                    status = "Importing…"
+                    scope.launch { status = com.desk.dashboard.data.Backup.import(context, uri) ?: "Imported" }
+                } }
+            }
+        }
+    }
+    Section("Backup") {
+        Txt(
+            "Saves your presets and layouts, appearance, dashboard, night and display settings, weather place, calendar " +
+                "choices, alarm, countdowns and iCal links to one file. Use it to move to a new device or keep a copy.",
+            Type.meta, Dash.muted, maxLines = 4,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MiniButton("Export", Dash.ink, Dash.accent) { exporter.launch("deskdash-backup-${java.time.LocalDate.now()}.json") }
+            MiniButton("Import", Dash.ink) { importer.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+        }
+        status?.let { Spacer(Modifier.height(10.dp)); Txt(it, Type.meta, if (it.contains("fail") || it.startsWith("That") || it.startsWith("Couldn")) Dash.danger else Dash.accentText) }
+        Spacer(Modifier.height(10.dp))
+        Txt(
+            "Not included: custom font files, imported .ics files, Google sign-in (reconnect after importing) and running timers.",
+            Type.meta, Dash.muted, maxLines = 3,
+        )
+    }
 }
 
 @Composable

@@ -30,7 +30,16 @@ import java.util.concurrent.TimeUnit
 // ---- Open-Meteo responses (only the fields we use) ----
 
 @Serializable
-data class Forecast(val current: Current, val daily: Daily) {
+data class Forecast(val current: Current, val daily: Daily, val hourly: Hourly? = null) {
+    @Serializable
+    data class Hourly(
+        val time: List<String>,
+        @SerialName("temperature_2m") val temp: List<Double>,
+        @SerialName("weather_code") val code: List<Int>,
+        @SerialName("precipitation_probability") val rain: List<Int?> = emptyList(),
+        @SerialName("is_day") val isDay: List<Int> = emptyList(),
+    )
+
     @Serializable
     data class Current(
         @SerialName("temperature_2m") val temp: Double,
@@ -38,6 +47,7 @@ data class Forecast(val current: Current, val daily: Daily) {
         @SerialName("apparent_temperature") val feels: Double? = null,
         @SerialName("relative_humidity_2m") val humidity: Double? = null,
         @SerialName("wind_speed_10m") val wind: Double? = null,
+        @SerialName("is_day") val isDay: Int = 1,
     )
 
     @Serializable
@@ -172,10 +182,12 @@ class WeatherRepo private constructor(private val context: Context) {
         val url = "https://api.open-meteo.com/v1/forecast".toHttpUrl().newBuilder()
             .addQueryParameter("latitude", lat.toString())
             .addQueryParameter("longitude", lon.toString())
-            .addQueryParameter("current", "temperature_2m,weather_code,apparent_temperature,relative_humidity_2m,wind_speed_10m")
+            .addQueryParameter("current", "temperature_2m,weather_code,apparent_temperature,relative_humidity_2m,wind_speed_10m,is_day")
             .addQueryParameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max")
             .addQueryParameter("timezone", "auto")
             .addQueryParameter("forecast_days", "7")
+            .addQueryParameter("hourly", "temperature_2m,weather_code,precipitation_probability,is_day")
+            .addQueryParameter("forecast_hours", "25")
             .addQueryParameter("temperature_unit", unit)
             .addQueryParameter("wind_speed_unit", if (unit == "fahrenheit") "mph" else "kmh")
             .build()
@@ -227,6 +239,23 @@ class WeatherRepo private constructor(private val context: Context) {
             country = str("country"),
             admin1 = listOfNotNull(label, where.ifEmpty { null }).joinToString(" · ").ifEmpty { null },
         ) to isArea
+    }
+
+    /** A name for coordinates (the device's location): Photon reverse geocoding, nearest place first. */
+    suspend fun placeAt(lat: Double, lon: Double): Place = withContext(Dispatchers.IO) {
+        val url = "https://photon.komoot.io/reverse".toHttpUrl().newBuilder()
+            .addQueryParameter("lat", lat.toString()).addQueryParameter("lon", lon.toString())
+            .addQueryParameter("lang", "en").addQueryParameter("limit", "1").build()
+        val req = Request.Builder().url(url).header("User-Agent", "Deskdash/1.0 (tablet dashboard)").build()
+        val found = runCatching {
+            http.newCall(req).execute().use { r ->
+                val f = json.parseToJsonElement(r.body!!.string()).jsonObject["features"]?.jsonArray?.firstOrNull()?.jsonObject
+                val p = f?.get("properties")?.jsonObject
+                fun str(k: String) = p?.get(k)?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                str("district") ?: str("locality") ?: str("city") ?: str("name")
+            }
+        }.getOrNull()
+        Place(found ?: "%.3f, %.3f".format(lat, lon), lat, lon)
     }
 
     suspend fun setCity(place: Place) {

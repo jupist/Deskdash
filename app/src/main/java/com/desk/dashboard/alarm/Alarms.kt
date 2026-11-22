@@ -65,13 +65,16 @@ object Alarms {
 
     @Volatile private var store: DataStore<Preferences>? = null
 
-    private fun store(context: Context): DataStore<Preferences> = store ?: synchronized(this) {
+    internal fun store(context: Context): DataStore<Preferences> = store ?: synchronized(this) {
         store ?: PreferenceDataStoreFactory.create(
             produceFile = {
                 context.applicationContext.createDeviceProtectedStorageContext().preferencesDataStoreFile("alarm")
             }
         ).also { store = it }
     }
+
+    /** Last known alarm settings, so tiles can draw before the first storage read. */
+    @Volatile var cached: AlarmConfig? = null
 
     fun config(context: Context): Flow<AlarmConfig> = store(context).data.map { p ->
         AlarmConfig(
@@ -82,7 +85,7 @@ object Alarms {
             snoozeMinutes = p[SNOOZE_MIN] ?: 9,
             snoozeAt = p[SNOOZE_AT]?.takeIf { it > 0 },
             once = p[ONCE] ?: false,
-        )
+        ).also { cached = it }
     }
 
     suspend fun setEnabled(context: Context, on: Boolean) = edit(context) {

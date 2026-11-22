@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         val activity = this
-        val cfg by remember { DisplaySettings.config(activity) }.collectAsStateWithLifecycle(null)
+        val cfg by remember { DisplaySettings.config(activity) }.collectAsStateWithLifecycle(DisplaySettings.cached)
         var screen by remember { mutableStateOf<Screen>(Screen.Dashboard) }
         var editing by rememberSaveable { mutableStateOf(false) }
         var overlay by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }

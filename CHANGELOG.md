@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0
+
+- **Screensaver:** Deskdash can be Android's screensaver: the dashboard, view-only, while charging (Settings › Display & power).
+- **Backup:** export and import presets, layouts, settings, the alarm, countdowns and iCal links as one file (Settings › Backup).
+- **Music app choice:** Now playing asks which app it resumes (Spotify, YouTube Music, any player…) instead of assuming Spotify.
+- **New tiles:** Favourite apps and Recent apps (recent needs usage access).
+- **Weather:** use my location; hourly forecast for the next 24 hours; night icons after dark.
+- **Editing:** dragging onto other tiles pushes them aside, live; tiles that didn't fit a screen can be put back in one tap; new tiles take the largest size that fits.
+- Album art keeps its shape (wide video thumbnails aren't cropped).
+- New app icon with a themed-icon layer; alarm buttons and the night clock follow your theme.
+- Faster start: no blank first frame, including right after an update.
+- Google events are kept offline between restarts.
+
 ## 1.0.0
 
 The dashboard becomes customizable and works on any Android screen.

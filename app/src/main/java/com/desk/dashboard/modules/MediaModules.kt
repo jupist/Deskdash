@@ -47,7 +47,15 @@ import com.desk.dashboard.media.Ambient
 import com.desk.dashboard.media.AmbientMode
 import com.desk.dashboard.media.MediaRepo
 import com.desk.dashboard.media.NowPlaying
-import com.desk.dashboard.media.SPOTIFY
+import com.desk.dashboard.board.LocalOverlay
+import com.desk.dashboard.system.Apps
+import com.desk.dashboard.ui.Overlay
+import com.desk.dashboard.ui.PanelHeader
+import com.desk.dashboard.ui.SettingRow
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import com.desk.dashboard.system.Lock
 import com.desk.dashboard.ui.BrightnessSlider
 import com.desk.dashboard.ui.CircleButton
@@ -87,8 +95,14 @@ object MusicModule : Module(
         var resumeFailed by remember { mutableStateOf(false) }
         val playing = np
         val showArt = t.bool("art", true)
+        val overlay = LocalOverlay.current
+        // "" means any app (no resume); null means not chosen yet.
+        val app = t.strOrNull("app")
+        LaunchedEffect(app) { repo.preferred = app?.ifEmpty { null } }
+        val appName = app?.takeIf { it.isNotEmpty() }?.let { appLabel(context, it) }
+        val choose = { overlay { MusicAppPicker(repo, onPick = { t.set("app", it); overlay(null) }) { overlay(null) } } }
 
-        Tile(label(t), meta = playing?.let { sourceName(context, it.pkg) }) {
+        Tile(label(t), meta = playing?.let { appLabel(context, it.pkg) }) {
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val boxW = maxWidth; val boxH = maxHeight
                 val tiny = maxHeight < 70.dp
@@ -99,20 +113,26 @@ object MusicModule : Module(
                         Spacer(Modifier.height(10.dp))
                         Box { MiniButton("Allow access", tc.ink, tc.accentFill) { context.startActivity(repo.accessIntent()) } }
                     }
+                    app == null && playing == null -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
+                        Txt("Which music app?", Type.display16, tc.ink)
+                        if (!tiny) Txt("Pick the app this tile resumes; it still shows whatever is playing", Type.bodySmall, tc.muted, maxLines = 2)
+                        Spacer(Modifier.height(10.dp))
+                        Box { MiniButton("Choose app", tc.ink, tc.accentFill, choose) }
+                    }
                     playing == null -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
                         Txt("Nothing playing", Type.display16, tc.ink)
                         if (!tiny) {
                             Txt(
                                 when {
-                                    resuming -> "Waking Spotify…"
-                                    resumeFailed -> "Spotify didn't respond"
-                                    hasSpotify(context) -> "Resume plays your last Spotify track"
+                                    resuming -> "Waking $appName…"
+                                    resumeFailed -> "$appName didn't respond"
+                                    appName != null -> "Resume plays your last $appName track"
                                     else -> "Play something in any music app"
                                 },
                                 Type.bodySmall, tc.muted, maxLines = 2,
                             )
                         }
-                        if (hasSpotify(context)) {
+                        if (app != null && app.isNotEmpty()) {
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 MiniButton("Resume", tc.ink, tc.accentFill) {
@@ -120,9 +140,9 @@ object MusicModule : Module(
                                     resuming = true
                                     resumeFailed = false
                                     // Plays in the background; never opens the app.
-                                    scope.launch { resumeFailed = !repo.resumeSpotify(); resuming = false }
+                                    scope.launch { resumeFailed = !repo.resume(app); resuming = false }
                                 }
-                                if (boxW > 200.dp) MiniButton("Open Spotify", tc.muted, tc.line) { openApp(context, SPOTIFY) }
+                                if (boxW > 200.dp) MiniButton("Open $appName", tc.muted, tc.line) { openApp(context, app) }
                             }
                         }
                     }
@@ -235,18 +255,56 @@ object MusicModule : Module(
 
     @Composable
     override fun Settings(t: TileScope) {
+        val context = LocalContext.current
+        val overlay = LocalOverlay.current
+        val repo = remember { MediaRepo.get(context) }
+        val app = t.strOrNull("app")
+        SettingRow("Music app", when { app == null -> "Not chosen"; app.isEmpty() -> "Any app"; else -> appLabel(context, app) }) {
+            MiniButton("Choose", Dash.ink, Dash.accent) {
+                overlay { MusicAppPicker(repo, onPick = { t.set("app", it); overlay(null) }) { overlay(null) } }
+            }
+        }
         SwitchRow("Album art", checked = t.bool("art", true), onToggle = { t.set("art", !t.bool("art", true)) })
     }
 }
 
-fun hasSpotify(context: Context) = context.packageManager.getLaunchIntentForPackage(SPOTIFY) != null
+fun appLabel(context: Context, pkg: String): String = runCatching {
+    val pm = context.packageManager
+    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+}.getOrDefault(pkg)
 
-private fun sourceName(context: Context, pkg: String): String =
-    if (pkg == SPOTIFY) "Spotify"
-    else runCatching {
-        val pm = context.packageManager
-        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-    }.getOrDefault(pkg)
+/** Installed music apps to pick from, plus "Any app". */
+@Composable
+fun MusicAppPicker(repo: MediaRepo, onPick: (String) -> Unit, onClose: () -> Unit) {
+    val apps = remember { repo.mediaApps() }
+    val icons by Apps.list.collectAsStateWithLifecycle()
+    Overlay(onDismiss = onClose, width = 460.dp) {
+        PanelHeader("Your music app", onClose)
+        Txt("Resume wakes this app and plays your last track. The tile still shows whatever is playing.", Type.meta, Dash.muted, maxLines = 3)
+        Spacer(Modifier.height(10.dp))
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+            items(apps, key = { it.pkg }) { a ->
+                Row(Modifier.fillMaxWidth().clickable { onPick(a.pkg) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val icon = icons?.firstOrNull { it.component.packageName == a.pkg }?.icon
+                    if (icon != null) Image(icon, null, Modifier.size(32.dp)) else Box(Modifier.size(32.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Txt(a.label, Type.body, Dash.ink, Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth().clickable { onPick("") }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { Icon(DashIcons.music, Dash.muted, 18.dp) }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Txt("Any app", Type.body, Dash.ink)
+                        Txt("Show whatever plays; no Resume button", Type.meta, Dash.muted)
+                    }
+                }
+            }
+        }
+        if (apps.isEmpty()) Txt("No music apps found", Type.meta, Dash.muted)
+    }
+}
 
 /** Opens [pkg]; if it isn't installed, its store page. */
 fun openApp(context: Context, pkg: String) {

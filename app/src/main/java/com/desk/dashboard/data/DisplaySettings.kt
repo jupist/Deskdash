@@ -64,6 +64,9 @@ object DisplaySettings {
     private val burnIn = stringPreferencesKey("burn_in")
     private val onboarded = booleanPreferencesKey("onboarded")
 
+    /** Last known settings, read once at app start, so the first frame needn't wait for storage. */
+    @Volatile var cached: DisplayConfig? = null
+
     fun config(context: Context): Flow<DisplayConfig> = context.prefs.data.map { p ->
         val d = DisplayConfig()
         DisplayConfig(
@@ -84,7 +87,7 @@ object DisplaySettings {
             burnIn = p[burnIn] ?: if (p[pixelShift] == true) "shift" else "off",
             // Installs from before onboarding existed count as set up (they have a weather place).
             onboarded = p[onboarded] ?: (p[Keys.weatherCity] != null),
-        )
+        ).also { cached = it }
     }.distinctUntilChanged()
 
     private fun parseTime(s: String) = runCatching { LocalTime.parse(s) }.getOrNull()

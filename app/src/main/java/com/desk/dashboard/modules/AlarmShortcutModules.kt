@@ -75,7 +75,7 @@ object AlarmModule : Module(
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val actions = LocalDashActions.current
-        val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(null)
+        val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(Alarms.cached)
         val today by rememberToday()
         val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
         val c = cfg ?: return Tile(label(t)) {}

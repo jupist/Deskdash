@@ -73,7 +73,7 @@ fun DashboardScreen(display: DisplayConfig, editing: Boolean, onEditing: (Boolea
     val b = boards ?: return
     val preset = b.active
     val undo = remember { mutableStateListOf<GridLayout>() }
-    var hidden by remember { mutableStateOf<List<String>>(emptyList()) }
+    var hidden by remember { mutableStateOf<List<TileSpec>>(emptyList()) }
 
     Column(
         Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap),
@@ -88,6 +88,7 @@ fun DashboardScreen(display: DisplayConfig, editing: Boolean, onEditing: (Boolea
                 edit -> EditBar(
                     presetName = preset.name,
                     hidden = hidden,
+                    onPutBack = { putBack(context, hidden, undo) },
                     canUndo = undo.isNotEmpty(),
                     onUndo = { undo.removeLastOrNull()?.let { BoardStore.saveLayout(it) } },
                     onAdd = { overlay { ModulePicker(onClose = { overlay(null) }) { m -> overlay(null); addTile(context, m, undo) } } },
@@ -107,7 +108,7 @@ fun DashboardScreen(display: DisplayConfig, editing: Boolean, onEditing: (Boolea
                 val here = layout.tiles.map { it.id }.toSet()
                 val source = preset.lastKey?.let { preset.layouts[it] }
                     ?: if (grid.w >= grid.h) com.desk.dashboard.board.Defaults.landscape else com.desk.dashboard.board.Defaults.portrait
-                source.tiles.filter { it.id !in here }.mapNotNull { Modules.get(it.type)?.name }.distinct()
+                source.tiles.filter { it.id !in here && Modules.get(it.type) != null }
             }
             BoardView(
                 layout = layout,
@@ -144,8 +145,12 @@ private fun updateTile(id: String, block: (TileSpec) -> TileSpec) {
 
 private fun addTile(context: android.content.Context, m: Module, undo: MutableList<GridLayout>) {
     val layout = CurrentGrid.value ?: return
-    val sizes = listOf(m.defaultSize, m.minSize).map { it.copy(w = it.w.coerceAtMost(layout.cols), h = it.h.coerceAtMost(layout.rows)) }
-    for (s in sizes.distinct()) {
+    // Default size if it fits, else the largest size (by area) between default and minimum that does.
+    val dw = m.defaultSize.w.coerceAtMost(layout.cols)
+    val dh = m.defaultSize.h.coerceAtMost(layout.rows)
+    val sizes = (m.minSize.w..dw).flatMap { w -> (m.minSize.h..dh).map { h -> com.desk.dashboard.board.Size(w, h) } }
+        .sortedWith(compareByDescending<com.desk.dashboard.board.Size> { it.w * it.h }.thenByDescending { it.w })
+    for (s in sizes) {
         val spot = Grid.firstFree(layout.tiles, s.w, s.h, layout.cols, layout.rows) ?: continue
         val cfg = JsonObject(m.initialConfig().mapValues { (_, v) ->
             when (v) {
@@ -161,6 +166,26 @@ private fun addTile(context: android.content.Context, m: Module, undo: MutableLi
         return
     }
     Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", Toast.LENGTH_LONG).show()
+}
+
+/** Places tiles that didn't fit this screen: at their size if possible, else their minimum. */
+private fun putBack(context: android.content.Context, tiles: List<TileSpec>, undo: MutableList<GridLayout>) {
+    val layout = CurrentGrid.value ?: return
+    val placed = layout.tiles.toMutableList()
+    var missed = 0
+    for (t in tiles) {
+        val min = Modules.minSize(t.type)
+        val spot = listOf(t.w.coerceAtMost(layout.cols) to t.h.coerceAtMost(layout.rows), min.w to min.h).firstNotNullOfOrNull { (w, h) ->
+            Grid.firstFree(placed, w, h, layout.cols, layout.rows)?.let { Triple(it.first, it.second, w to h) }
+        }
+        if (spot == null) { missed++; continue }
+        placed += t.copy(x = spot.first, y = spot.second, w = spot.third.first, h = spot.third.second)
+    }
+    if (placed.size > layout.tiles.size) {
+        undo += layout
+        BoardStore.saveLayout(layout.copy(tiles = placed))
+    }
+    if (missed > 0) Toast.makeText(context, "$missed didn't fit: shrink or remove a tile, then try again", Toast.LENGTH_LONG).show()
 }
 
 @Composable
@@ -206,7 +231,7 @@ private fun BatteryStat() {
 }
 
 @Composable
-private fun EditBar(presetName: String, hidden: List<String>, canUndo: Boolean, onUndo: () -> Unit, onAdd: () -> Unit, onDone: () -> Unit) {
+private fun EditBar(presetName: String, hidden: List<TileSpec>, onPutBack: () -> Unit, canUndo: Boolean, onUndo: () -> Unit, onAdd: () -> Unit, onDone: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val overlay = LocalOverlay.current
     Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -218,7 +243,9 @@ private fun EditBar(presetName: String, hidden: List<String>, canUndo: Boolean, 
                     Txt("  ▾", Type.body, Dash.muted)
                     if (hidden.isNotEmpty()) {
                         HSpace(12.dp)
-                        Txt("Didn't fit this screen: ${hidden.joinToString()}", Type.meta, Dash.muted)
+                        Txt("Didn't fit: ${hidden.mapNotNull { Modules.get(it.type)?.name }.joinToString()}", Type.meta, Dash.muted, Modifier.weight(1f, fill = false))
+                        HSpace(8.dp)
+                        MiniButton("Put back", Dash.ink, Dash.accent, onPutBack)
                     }
                 }
                 if (menu) PresetMenu(onDismiss = { menu = false }, onRename = { id, name ->

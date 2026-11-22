@@ -29,6 +29,9 @@ import kotlin.coroutines.resume
 
 const val SPOTIFY = "com.spotify.music"
 
+/** An installed app that can play media: it has a media browser service or a media button receiver. */
+data class MediaApp(val pkg: String, val label: String)
+
 data class NowPlaying(
     val pkg: String,
     val title: String,
@@ -50,7 +53,7 @@ data class NowPlaying(
 }
 
 /**
- * Tracks the active media session (Spotify first, else the most recent one) while [start]ed.
+ * Tracks the active media session (the preferred app first, else whatever plays) while [start]ed.
  * Needs notification access for [MediaListener].
  */
 class MediaRepo private constructor(private val context: Context) {
@@ -62,6 +65,25 @@ class MediaRepo private constructor(private val context: Context) {
     val state: StateFlow<NowPlaying?> = _state
 
     private var controller: MediaController? = null
+
+    /** The user's music app: shown first when it has a track, and what Resume wakes. */
+    @Volatile var preferred: String? = null
+        set(v) {
+            if (field == v) return
+            field = v
+            main.post { pick(watched) }
+        }
+
+    /** Installed apps that can play media, alphabetically. */
+    fun mediaApps(): List<MediaApp> {
+        val pm = context.packageManager
+        val pkgs = (pm.queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE), 0).map { it.serviceInfo.packageName } +
+            pm.queryBroadcastReceivers(Intent(Intent.ACTION_MEDIA_BUTTON), 0).map { it.activityInfo.packageName })
+            .distinct()
+            .filter { it != context.packageName && pm.getLaunchIntentForPackage(it) != null }
+        return pkgs.map { MediaApp(it, runCatching { pm.getApplicationLabel(pm.getApplicationInfo(it, 0)).toString() }.getOrDefault(it)) }
+            .sortedBy { it.label.lowercase() }
+    }
     private var users = 0
     private var artKey: Any? = null
     private var artCache: ImageBitmap? = null
@@ -81,7 +103,7 @@ class MediaRepo private constructor(private val context: Context) {
 
     /**
      * Attached to every session, not just the one shown: a session often appears before it has
-     * any track info (Spotify waking up, say), and only its own callbacks say when that arrives.
+     * any track info (an app waking up, say), and only its own callbacks say when that arrives.
      */
     private val watcher = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) = pick(watched)
@@ -115,9 +137,9 @@ class MediaRepo private constructor(private val context: Context) {
         pick(list)
     }
 
-    /** Spotify (if it has a track), else whatever is playing, else anything with a track. */
+    /** The preferred app (if it has a track), else whatever is playing, else anything with a track. */
     private fun pick(list: List<MediaController>) {
-        controller = list.firstOrNull { it.packageName == SPOTIFY && it.metadata != null }
+        controller = list.firstOrNull { it.packageName == preferred && it.metadata != null }
             ?: list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING && it.metadata != null }
             ?: list.firstOrNull { it.metadata != null }
         publish()
@@ -168,20 +190,20 @@ class MediaRepo private constructor(private val context: Context) {
     fun previous() = controller?.transportControls?.skipToPrevious()
 
     /**
-     * Resumes Spotify's last track in the background when it has no session (not running).
-     * 1. Sends a PLAY key straight to Spotify's media button receiver (what a headset does).
-     * 2. Falls back to connecting to Spotify's MediaBrowserService and calling play().
-     * Returns false if neither produced a Spotify session; the caller then opens the app.
+     * Wakes a music app that isn't running and resumes its last track:
+     * 1. Sends a PLAY key straight to the app's media button receiver (what a headset does).
+     * 2. Falls back to connecting to its MediaBrowserService and calling play().
+     * Returns false if neither produced a playing session. Never opens the app.
      */
-    suspend fun resumeSpotify(): Boolean {
-        sendPlayKeyToSpotify()
-        if (awaitSpotifyPlaying()) return true
-        val viaBrowser = runCatching { playViaBrowser() }.getOrDefault(false)
-        return viaBrowser && awaitSpotifyPlaying()
+    suspend fun resume(pkg: String): Boolean {
+        sendPlayKey(pkg)
+        if (awaitPlaying(pkg)) return true
+        val viaBrowser = runCatching { playViaBrowser(pkg) }.getOrDefault(false)
+        return viaBrowser && awaitPlaying(pkg)
     }
 
-    private fun sendPlayKeyToSpotify() {
-        val probe = Intent(Intent.ACTION_MEDIA_BUTTON).setPackage(SPOTIFY)
+    private fun sendPlayKey(pkg: String) {
+        val probe = Intent(Intent.ACTION_MEDIA_BUTTON).setPackage(pkg)
         val receiver = context.packageManager.queryBroadcastReceivers(probe, 0).firstOrNull()?.activityInfo ?: return
         for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
             context.sendBroadcast(
@@ -198,12 +220,12 @@ class MediaRepo private constructor(private val context: Context) {
      * Waits for Spotify's own session to report playing (checked directly, not via the tile's
      * state). If it shows up paused, nudges it with play once.
      */
-    private suspend fun awaitSpotifyPlaying(timeoutMs: Long = 8000): Boolean = withTimeoutOrNull(timeoutMs) {
+    private suspend fun awaitPlaying(pkg: String, timeoutMs: Long = 8000): Boolean = withTimeoutOrNull(timeoutMs) {
         val started = SystemClock.elapsedRealtime()
         var nudged = false
         while (true) {
             val c = runCatching { sessions.getActiveSessions(component) }.getOrNull()
-                ?.firstOrNull { it.packageName == SPOTIFY }
+                ?.firstOrNull { it.packageName == pkg }
             val s = c?.playbackState?.state
             if (s == PlaybackState.STATE_PLAYING || s == PlaybackState.STATE_BUFFERING) return@withTimeoutOrNull true
             if (c != null && !nudged && SystemClock.elapsedRealtime() - started > 1500) {
@@ -216,9 +238,9 @@ class MediaRepo private constructor(private val context: Context) {
     } ?: false
 
     /** Connects to Spotify's MediaBrowserService (Android Auto's route) and plays. */
-    private suspend fun playViaBrowser(): Boolean {
+    private suspend fun playViaBrowser(pkg: String): Boolean {
         val service = context.packageManager
-            .queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE).setPackage(SPOTIFY), 0)
+            .queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE).setPackage(pkg), 0)
             .firstOrNull()?.serviceInfo ?: return false
         return withTimeoutOrNull(6000) {
             suspendCancellableCoroutine { cont ->
@@ -229,7 +251,7 @@ class MediaRepo private constructor(private val context: Context) {
                         override fun onConnected() {
                             val b = browser!!
                             MediaController(context, b.sessionToken).transportControls.play()
-                            // Give play a moment to reach Spotify before dropping the connection.
+                            // Give play a moment to reach the app before dropping the connection.
                             main.postDelayed({ b.disconnect() }, 3000)
                             if (cont.isActive) cont.resume(true)
                         }
