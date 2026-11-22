@@ -13,14 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layoutId
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.desk.dashboard.data.WeatherRepo
 import com.desk.dashboard.system.rememberBattery
 import com.desk.dashboard.ui.tiles.AlarmTile
 import com.desk.dashboard.ui.tiles.AmbientMini
@@ -30,9 +26,6 @@ import com.desk.dashboard.ui.tiles.MusicTile
 import com.desk.dashboard.ui.tiles.ReadingMini
 import com.desk.dashboard.ui.tiles.TimeTile
 import com.desk.dashboard.ui.tiles.WeatherTile
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 class DashActions(
     val openSettings: () -> Unit,
@@ -89,8 +82,6 @@ private fun TopBar(actions: DashActions) {
         Box(Modifier.width(1.dp).height(26.dp).background(Dash.line))
         HSpace(28.dp)
         BatteryStat()
-        HSpace(28.dp)
-        UpdatedStat()
         Spacer(Modifier.weight(1f))
         VolumeSlider()
         HSpace(16.dp)
@@ -107,16 +98,6 @@ private fun TopBar(actions: DashActions) {
 private fun BatteryStat() {
     val battery = rememberBattery().value
     Stat("Tablet", battery?.toString() ?: "—")
-}
-
-private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
-
-/** Time of the last successful weather fetch. */
-@Composable
-private fun UpdatedStat() {
-    val state by WeatherRepo.get(LocalContext.current).state.collectAsStateWithLifecycle()
-    val at = state.fetchedAt?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).format(hhmm) }
-    Stat("Updated", at ?: "—")
 }
 
 @Composable

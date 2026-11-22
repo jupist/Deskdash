@@ -70,7 +70,7 @@ Layout: 12 dp outer padding and gaps, a 48 dp top bar, then a grid of 12 equal c
 | Weather | 9–11 | 3 | tile |
 | Ambient (top half) / Reading (bottom half) | 12 | 3 | sand / tile |
 
-Volume and brightness are compact sliders in the top bar (between "Updated" and Settings), not a tile. Ambient and Reading are half-height mini tiles stacked in column 12 (10 dp padding, 9 sp label, tap anywhere). This layout (changed in milestone 3) gives Today and Upcoming nearly the full width.
+Volume and brightness are compact sliders in the top bar (between the battery stat and Settings), not a tile. Ambient and Reading are half-height mini tiles stacked in column 12 (10 dp padding, 9 sp label, tap anywhere). This layout (changed in milestone 3) gives Today and Upcoming nearly the full width.
 
 Density note: the mockup is drawn in CSS px at 1340 × 800, but the tablet renders at ~1.33 px/dp (≈ 1006 × 600 dp), so tiles have less room than in the mockup. Upcoming uses the mockup's two-line rows when they fit and falls back to one-line rows otherwise.
 
@@ -80,7 +80,7 @@ Round elements are limited to the circular action buttons (34 dp), media control
 
 Each tile reads from one source and has an empty or error state, so the screen never shows a blank box.
 
-- **Top bar.** 3 × 3 dot icon at left, then battery ("84% · charging", from ACTION_BATTERY_CHANGED) and "Updated HH:mm" (last successful weather fetch). In the middle: Vol and Light sliders. At right: outlined uppercase Settings and Lock buttons.
+- **Top bar.** 3 × 3 dot icon at left, then battery ("84% · charging", from ACTION_BATTERY_CHANGED). In the middle: Vol and Light sliders. At right: outlined uppercase Settings and Lock buttons.
 - **Time.** 24-hour HH:mm in Share Tech Mono, weekday and date ("SAT" / "21 NOV") at right. Recompose only on minute changes, aligned to the start of each minute.
 - **Weather.** Current temp, condition word (WMO code), today's high/low, five bars for the next five days' highs with weekday labels; today's bar slate, rest sand. Source: Open-Meteo `api.open-meteo.com/v1/forecast` (no key) with `current`, `daily=temperature_2m_max,temperature_2m_min,weather_code`. Refresh every 30 min and on resume; on failure keep cached data shown in muted color.
 - **Calendar (today).** Next three events from now until end of tomorrow: time, title, relative label for the next one ("in 25 min", "now"). Source: CalendarContract.Instances filtered to calendars chosen in Settings. Tap opens the event in the Calendar app. Empty: "Nothing else today".
@@ -119,7 +119,7 @@ Full screen from the top bar's Settings button, closes with Done; every change s
 - **Keep awake:** FLAG_KEEP_SCREEN_ON only while charging (and setting on).
 - **Boot:** via home-app mode (HOME category). Tapping the dot icon opens an alphabetical list of installed apps (always, not only in home-app mode; it is how you reach other apps when Desk is home).
 - **Night mode:** between start/end, replace the grid with a large muted clock and next alarm time, window brightness at night level. Tap shows full dashboard for 30 s. Alarm still rings.
-- **Offline:** weather keeps last data with "Updated" time; everything else works offline.
+- **Offline:** weather keeps its last data, shown muted when a refresh fails; everything else works offline.
 - **Samsung battery:** prompt once to allow unrestricted battery (system dialog) and open Device care › Battery, one tap from Background usage limits › Never sleeping apps (the list itself needs a system-only permission to open directly).
 
 ## Permissions
