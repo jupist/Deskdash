@@ -45,6 +45,9 @@ import com.desk.dashboard.system.Device
 import com.desk.dashboard.system.Lock
 import com.desk.dashboard.system.rememberBattery
 import com.desk.dashboard.system.rememberMinute
+import com.desk.dashboard.system.rememberPixelShift
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.dp
 import com.desk.dashboard.ui.AppsScreen
 import com.desk.dashboard.ui.BatteryPrompt
 import com.desk.dashboard.ui.Dash
@@ -176,9 +179,12 @@ class MainActivity : ComponentActivity() {
                             Screen.Apps -> AppsScreen(onDone = { screen = Screen.Dashboard })
                             Screen.Dashboard ->
                                 if (night && !peeking && !editing) {
-                                    NightScreen(c, onTap = { peeking = true })
+                                    // The night clock is the most static thing shown; it roams wider.
+                                    val shift by rememberPixelShift(c?.pixelShift == true, radius = 14.dp, periodMs = 60_000)
+                                    Box(Modifier.offset(shift.x, shift.y)) { NightScreen(c, onTap = { peeking = true }) }
                                 } else if (c != null) {
-                                    DashboardScreen(c, editing, onEditing = { editing = it })
+                                    val shift by rememberPixelShift(c.pixelShift && !editing)
+                                    Box(Modifier.offset(shift.x, shift.y)) { DashboardScreen(c, editing, onEditing = { editing = it }) }
                                     BatteryPrompt(c)
                                 }
                         }

@@ -148,9 +148,15 @@ fun DisplaySection() {
             Switch(c.keepAwakeCharging, onToggle = { scope.launch { DisplaySettings.setKeepAwake(context, !c.keepAwakeCharging) } })
         }
         SettingRow(
+            "Burn-in protection",
+            "For OLED screens: moves everything a few pixels every couple of minutes (the night clock wanders further). LCD screens don't need it.",
+        ) {
+            Switch(c.pixelShift, onToggle = { scope.launch { DisplaySettings.setPixelShift(context, !c.pixelShift) } })
+        }
+        SettingRow(
             "Use as home app",
-            if (home) "Desk is the home app: it opens on boot and Home; the dot icon lists apps"
-            else "Opens on boot and on Home. Choose Desk on the next screen",
+            if (home) "Deskdash is the home app: it opens on boot and Home; the dot icon lists apps"
+            else "Opens on boot and on Home. Choose Deskdash on the next screen",
         ) {
             MiniButton(if (home) "Change" else "Set", if (home) Dash.muted else Dash.ink) {
                 Device.open(context, Device.homeSettingsIntent())
@@ -182,11 +188,11 @@ fun PermissionsSection() {
         PermRow("Device admin", "Lock button (turn off before uninstalling)", s.admin) {
             Device.open(context, Lock.askIntent(context))
         }
-        PermRow("Unrestricted battery", "Keeps Desk running in the background", s.battery) {
+        PermRow("Unrestricted battery", "Keeps Deskdash running in the background", s.battery) {
             Device.open(context, Device.batteryExemptionIntent(context))
         }
         Device.samsungSleepIntent(context)?.let { intent ->
-            SettingRow("Never sleeping apps", "Samsung: Background usage limits › Never sleeping apps › add Desk") {
+            SettingRow("Never sleeping apps", "Samsung: Background usage limits › Never sleeping apps › add Deskdash") {
                 MiniButton("Open", Dash.ink) { Device.open(context, intent) }
             }
         }
@@ -218,7 +224,7 @@ private class SpecialAccess(
     }
 }
 
-/** One-time prompt (SPEC: Samsung battery) so One UI doesn't put Desk to sleep. */
+/** One-time prompt (SPEC: Samsung battery) so One UI doesn't put Deskdash to sleep. */
 @Composable
 fun BatteryPrompt(cfg: DisplayConfig) {
     val context = LocalContext.current
@@ -232,12 +238,12 @@ fun BatteryPrompt(cfg: DisplayConfig) {
     val samsung = remember { Device.samsungSleepIntent(context) }
 
     Overlay(onDismiss = done, width = 480.dp) {
-        Txt("KEEP DESK AWAKE", Type.label, Dash.ink)
+        Txt("KEEP DESKDASH AWAKE", Type.label, Dash.ink)
         Spacer(Modifier.height(14.dp))
         Txt(
-            "Android may put Desk to sleep in the background, which can stop the clock, music tile and " +
+            "Android may put Deskdash to sleep in the background, which can stop the clock, music tile and " +
                 "alarm from updating. Allow it to run unrestricted" +
-                (if (samsung != null) ", then open Battery › Background usage limits › Never sleeping apps and add Desk." else "."),
+                (if (samsung != null) ", then open Battery › Background usage limits › Never sleeping apps and add Deskdash." else "."),
             Type.bodySmall.copy(lineHeight = Type.bodySmall.fontSize * 1.6f), Dash.ink, maxLines = 6,
         )
         Spacer(Modifier.height(18.dp))
