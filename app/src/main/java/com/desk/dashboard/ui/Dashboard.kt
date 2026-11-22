@@ -65,7 +65,13 @@ import kotlinx.serialization.json.JsonPrimitive
  * is sized to the screen, and the active preset supplies its layout for that grid.
  */
 @Composable
-fun DashboardScreen(display: DisplayConfig, editing: Boolean, onEditing: (Boolean) -> Unit) {
+fun DashboardScreen(
+    display: DisplayConfig,
+    editing: Boolean,
+    onEditing: (Boolean) -> Unit,
+    /** Size the grid as if the top bar were showing (the screensaver hides it but should match the app's layout). */
+    gridAsWithBar: Boolean = false,
+) {
     val context = LocalContext.current
     val actions = LocalDashActions.current!!
     val overlay = LocalOverlay.current
@@ -100,7 +106,8 @@ fun DashboardScreen(display: DisplayConfig, editing: Boolean, onEditing: (Boolea
         }
 
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-            val grid = Grid.sizeFor(maxWidth.value, maxHeight.value)
+            val gridH = if (gridAsWithBar) maxHeight - Dash.topBar - Dash.gap else maxHeight
+            val grid = Grid.sizeFor(maxWidth.value, gridH.value)
             val layout = remember(preset, grid) { BoardStore.layoutFor(preset, grid.w, grid.h) }
             CurrentGrid.value = layout
             // Tiles from the preset's other screen sizes that don't fit this one.

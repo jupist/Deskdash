@@ -134,7 +134,7 @@ fun VolumeSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
 @Composable
 fun BrightnessSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
     val context = LocalContext.current
-    val activity = context as Activity
+    val activity = context as? Activity // null in the screensaver, which has no window of ours to dim
     var v by remember { mutableFloatStateOf(readBrightness(context)) }
     var asked by remember { mutableStateOf(false) } // sent the user to the permission screen already
 
@@ -142,9 +142,11 @@ fun BrightnessSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
         "Light", v, modifier = modifier, fill = fill,
         onChange = {
             v = it
-            val lp = activity.window.attributes
-            lp.screenBrightness = it.coerceAtLeast(0.01f)
-            activity.window.attributes = lp
+            activity?.window?.let { w ->
+                val lp = w.attributes
+                lp.screenBrightness = it.coerceAtLeast(0.01f)
+                w.attributes = lp
+            }
             if (Settings.System.canWrite(context)) writeBrightness(context, it)
         },
         onRelease = {

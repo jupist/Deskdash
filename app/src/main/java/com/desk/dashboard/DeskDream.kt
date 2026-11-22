@@ -58,14 +58,15 @@ class DeskDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         val view = ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@DeskDream)
             setViewTreeSavedStateRegistryOwner(this@DeskDream)
-            setContent { Content() }
+            // Not "Content()": inside apply {} that would resolve to ComposeView.Content() and recurse forever.
+            setContent { DreamContent() }
         }
         setContentView(view)
         registry.currentState = Lifecycle.State.STARTED
     }
 
     @androidx.compose.runtime.Composable
-    private fun Content() {
+    private fun DreamContent() {
         val context = this
         val cfg by remember { DisplaySettings.config(context) }.collectAsStateWithLifecycle(DisplaySettings.cached)
         val now by rememberMinute()
@@ -73,14 +74,31 @@ class DeskDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         val night = c.isNight(now.toLocalTime())
         // Tiles' buttons are inert here (the dream isn't interactive), so actions do nothing.
         val actions = remember { DashActions({}, {}, {}, {}) }
-        CompositionLocalProvider(LocalDashActions provides actions, LocalOverlay provides {}) {
+        CompositionLocalProvider(
+            LocalDashActions provides actions,
+            LocalOverlay provides {},
+            // Tiles register for activity results (permission prompts, pickers); a screensaver has no
+            // activity to launch them from, so they get a registry that launches nothing.
+            androidx.activity.compose.LocalActivityResultRegistryOwner provides inertResults,
+        ) {
             Box(Modifier.fillMaxSize().background(Dash.frame)) {
                 val shift by rememberPixelShift(c.pixelShift, radius = if (night) 14.dp else 3.dp, periodMs = if (night) 60_000 else 120_000)
                 Box(Modifier.pixelGrid(c.pixelGrid).offset(shift.x, shift.y)) {
                     // No top bar: its buttons can't be used in a screensaver.
-                    if (night) NightScreen(c, onTap = {}) else DashboardScreen(c.copy(topBar = false), editing = false, onEditing = {})
+                    if (night) NightScreen(c, onTap = {}) else DashboardScreen(c.copy(topBar = false), editing = false, onEditing = {}, gridAsWithBar = true)
                 }
             }
+        }
+    }
+
+    private val inertResults = object : androidx.activity.result.ActivityResultRegistryOwner {
+        override val activityResultRegistry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(
+                requestCode: Int,
+                contract: androidx.activity.result.contract.ActivityResultContract<I, O>,
+                input: I,
+                options: androidx.core.app.ActivityOptionsCompat?,
+            ) {}
         }
     }
 
