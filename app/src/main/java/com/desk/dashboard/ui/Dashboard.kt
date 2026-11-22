@@ -93,7 +93,7 @@ private fun TopBar(actions: DashActions) {
         UpdatedStat()
         Spacer(Modifier.weight(1f))
         VolumeSlider()
-        HSpace(28.dp)
+        HSpace(16.dp)
         BrightnessSlider()
         Spacer(Modifier.weight(1f))
         OutlineButton("Settings", DashIcons.gear, actions.openSettings)

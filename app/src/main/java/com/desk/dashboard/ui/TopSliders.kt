@@ -9,8 +9,9 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -42,35 +43,48 @@ import com.desk.dashboard.system.SystemBroadcast
 import kotlin.math.roundToInt
 
 /**
- * Flat slider: 3 dp track, slate fill, 16 dp ink thumb. The whole [height] is touchable;
- * tap jumps, drag follows. [onRelease] fires when a gesture ends.
+ * Flat slider: 3 dp track, slate fill, 20 dp ink thumb. Follows the finger from the moment it
+ * touches (no drag threshold, no need to hit the thumb), and the touch area is the full [height]
+ * plus [reach] past each end of the track, so the ends are easy to hit. [onRelease] fires when the
+ * finger lifts.
  */
 @Composable
 fun FlatSlider(
     value: Float,
     onChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
-    height: Dp = 40.dp,
+    height: Dp = 48.dp,
+    reach: Dp = 12.dp,
     onRelease: () -> Unit = {},
 ) {
     val change by rememberUpdatedState(onChange)
     val release by rememberUpdatedState(onRelease)
     BoxWithConstraints(modifier.height(height)) {
-        val thumb = 16.dp
-        val widthPx = constraints.maxWidth.toFloat()
-        val trackW = maxWidth
-        val thumbPx = with(LocalDensity.current) { thumb.toPx() }
-        fun at(x: Float) = ((x - thumbPx / 2) / (widthPx - thumbPx)).coerceIn(0f, 1f)
+        val thumb = 20.dp
+        val density = LocalDensity.current
+        val reachPx = with(density) { reach.toPx() }
+        val thumbPx = with(density) { thumb.toPx() }
+        val trackPx = constraints.maxWidth - 2 * reachPx
+        val trackW = maxWidth - reach * 2
+        fun at(x: Float) = ((x - reachPx - thumbPx / 2) / (trackPx - thumbPx)).coerceIn(0f, 1f)
         Box(
             Modifier.fillMaxWidth().fillMaxHeight()
-                .pointerInput(Unit) { detectTapGestures { change(at(it.x)); release() } }
                 .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { change(at(it.x)) },
-                        onDragEnd = { release() },
-                        onDragCancel = { release() },
-                    ) { c, _ -> change(at(c.position.x)) }
-                },
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        down.consume()
+                        change(at(down.position.x))
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val p = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!p.pressed) break
+                            p.consume()
+                            change(at(p.position.x))
+                        }
+                        release()
+                    }
+                }
+                .padding(horizontal = reach),
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(Modifier.fillMaxWidth().height(3.dp).background(Dash.line))
@@ -87,9 +101,8 @@ fun FlatSlider(
 private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit, onRelease: () -> Unit = {}) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Txt(label.uppercase(), Type.small.copy(letterSpacing = Type.label.letterSpacing), Dash.muted)
-        Spacer(Modifier.width(12.dp))
-        FlatSlider(value, onChange, Modifier.width(124.dp), onRelease = onRelease)
-        Spacer(Modifier.width(8.dp))
+        // 150 dp track plus 12 dp of extra touch area at each end.
+        FlatSlider(value, onChange, Modifier.width(174.dp), onRelease = onRelease)
         Txt("${(value * 100).roundToInt()}", Type.display16.copy(textAlign = TextAlign.End), Dash.ink, Modifier.width(30.dp))
     }
 }
