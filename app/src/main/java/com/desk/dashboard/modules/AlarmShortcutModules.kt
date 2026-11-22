@@ -91,7 +91,7 @@ object AlarmModule : Module(
 
         Tile(label(t), meta = alarmMeta(c, today), metaColor = if (c.enabled) tc.accent else tc.muted) {
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                val showDays = maxHeight > 90.dp && maxWidth > 190.dp
+                val showDays = maxHeight > 90.dp && maxWidth > 270.dp // seven chips plus the switch
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.Bottom) {
                     // Time and days open the alarm settings; the switch toggles.
                     Column(Modifier.weight(1f).fillMaxSize().clickable(

@@ -9,6 +9,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -150,7 +155,7 @@ private fun PageContent(id: String, showOverlay: ((@Composable () -> Unit)?) -> 
         "alarm" -> AlarmSection(showOverlay)
         "night" -> {
             NightSection(showOverlay)
-            NightExtras()
+            NightExtras(showOverlay)
         }
         "display" -> DisplaySection()
         "permissions" -> PermissionsSection()
@@ -213,8 +218,9 @@ private fun DashboardPage() {
 }
 
 @Composable
-private fun NightExtras() {
+private fun NightExtras(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val context = LocalContext.current
+    val activity = context as android.app.Activity
     val scope = rememberCoroutineScope()
     val cfg by remember { DisplaySettings.config(context) }.collectAsStateWithLifecycle(null)
     val c = cfg ?: return
@@ -222,7 +228,43 @@ private fun NightExtras() {
         SwitchRow("Next alarm", checked = c.nightAlarm) { scope.launch { DisplaySettings.setNightAlarm(context, !c.nightAlarm) } }
         SwitchRow("Next event", "From your calendars", c.nightEvent) { scope.launch { DisplaySettings.setNightEvent(context, !c.nightEvent) } }
         SwitchRow("Seconds", checked = c.nightSeconds) { scope.launch { DisplaySettings.setNightSeconds(context, !c.nightSeconds) } }
+        RowDivider()
+        SettingRow("Preview", "Hold the button to see the night screen at night brightness") {
+            HoldButton("Hold to preview") { held ->
+                if (held) {
+                    setWindowBrightness(activity, c.nightBrightness)
+                    showOverlay { NightScreen(c, onTap = {}) }
+                } else {
+                    showOverlay(null)
+                    setWindowBrightness(activity, if (c.isNight(java.time.LocalTime.now())) c.nightBrightness else null)
+                }
+            }
+        }
     }
+}
+
+/** A button that reports press and release: [onHold] gets true while a finger is on it. */
+@Composable
+private fun HoldButton(text: String, onHold: (Boolean) -> Unit) {
+    val hold by androidx.compose.runtime.rememberUpdatedState(onHold)
+    var pressed by remember { mutableStateOf(false) }
+    Txt(
+        text.uppercase(), Type.meta.copy(letterSpacing = Type.small.letterSpacing), if (pressed) Dash.onAccent else Dash.ink,
+        Modifier.clip(Dash.smallShape)
+            .background(if (pressed) Dash.accent else androidx.compose.ui.graphics.Color.Transparent)
+            .border(1.dp, Dash.accent, Dash.smallShape)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    pressed = true
+                    hold(true)
+                    waitForUpOrCancellation()
+                    pressed = false
+                    hold(false)
+                }
+            }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
 }
 
 @Composable

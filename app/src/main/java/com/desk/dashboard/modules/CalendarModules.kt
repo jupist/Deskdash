@@ -238,13 +238,12 @@ object CountdownModule : Module(
             }
             return
         }
-        val visible = t.int("rows", 3)
         Tile(label(t), Modifier.pressable(open, 0.99f)) {
             Spacer(Modifier.height(6.dp))
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                 val narrow = maxWidth < 330.dp
-                // The closest dates fill the tile; the rest are a scroll away.
-                val rows = visible.coerceAtMost((maxHeight / 30.dp).toInt().coerceAtLeast(1))
+                // As many rows as fit at a comfortable height, stretched to fill the tile; the rest scroll.
+                val rows = (maxHeight / 32.dp).toInt().coerceAtLeast(1)
                 val rowH = maxHeight / rows
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(list, key = { it.id }) { DateRow(it, today, Modifier.height(rowH), t, narrow) }
@@ -284,9 +283,6 @@ object CountdownModule : Module(
     @Composable
     override fun Settings(t: TileScope) {
         val actions = LocalDashActions.current
-        SettingRow("Rows before scrolling") {
-            Segmented(listOf(2, 3, 4, 5, 6), t.int("rows", 3), { "$it" }) { t.set("rows", it) }
-        }
         SwitchRow("Show times", checked = t.bool("time", true), onToggle = { t.set("time", !t.bool("time", true)) })
         SwitchRow("Show notes", checked = t.bool("notes", true), onToggle = { t.set("notes", !t.bool("notes", true)) })
         TitleSetting(t, "Upcoming")

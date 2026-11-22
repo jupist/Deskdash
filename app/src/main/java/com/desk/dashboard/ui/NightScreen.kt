@@ -76,6 +76,7 @@ fun NightScreen(cfg: DisplayConfig?, onTap: () -> Unit) {
             FitText(
                 time, Type.clock, NightInk, Modifier.fillMaxWidth().fillMaxHeight(0.5f),
                 sample = (if (h24) "00:00" else "10:00") + if (seconds) ":00" else "", maxSize = 260f,
+                alignment = Alignment.BottomCenter,
             )
             if (ampm != null) Txt(ampm, Type.label.copy(fontSize = 16.sp), NightMuted)
             Spacer(Modifier.height(18.dp))
