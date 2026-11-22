@@ -108,7 +108,7 @@ Full screen from the top bar's Settings button, closes with Done; every change s
 
 - **Alarm.** Time picker, repeat-day chips (none = rings once), sound (system ringtone picker, default alarm), snooze (5 / 9 / 10 / 15 min, default 9).
 - **Calendar.** Checkboxes per device calendar grouped by account; all Google calendars on by default.
-- **Weather.** City search via `geocoding-api.open-meteo.com/v1/search`, storing name/lat/lon; units °C/°F (default °C).
+- **Weather.** Place search via Photon (`photon.komoot.io`, OpenStreetMap, no key), so suburbs and neighbourhoods work as well as cities; stores name/lat/lon; units °C/°F (default °C).
 - **Night mode.** Switch, start/end (default 23:00–07:00), night brightness slider (default 2%).
 - **Display.** Keep screen on while charging (default on); use as home app (opens system default-home setting).
 - **Permissions.** One row per permission: Granted, or a Grant button opening the right system screen.

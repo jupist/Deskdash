@@ -9,7 +9,7 @@ An always-on desk dashboard for an Android tablet. Clock, calendar, countdowns, 
 - **Clock** that changes exactly on the minute.
 - **Today:** the next few events from the calendars on the device (Google, Samsung and others), each with its own on/off.
 - **Upcoming:** your own countdown list (exams, deadlines, trips). The three closest fill the tile; the rest scroll.
-- **Weather** from [Open-Meteo](https://open-meteo.com) (no API key): the current temperature, today's high and low, and five days ahead. The last forecast stays on screen when you're offline.
+- **Weather** from [Open-Meteo](https://open-meteo.com) (no API key) for any city or neighbourhood: the current temperature, today's high and low, and five days ahead. The last forecast stays on screen when you're offline.
 - **Now playing:** album art, progress and controls for Spotify or any other player, even while it's in the background. When nothing is playing, one tap resumes your last Spotify track.
 - **Alarm:** rings over the lock screen and from standby. It has repeat days, a one-time option, snooze, and survives reboots.
 - **Ambient sound:** a real rain recording, or soft noise, both looping without a gap.

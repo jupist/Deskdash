@@ -278,11 +278,11 @@ private fun WeatherSection() {
 
     Section("Weather") {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Txt("City", Type.body, Dash.muted, Modifier.width(64.dp))
+            Txt("Place", Type.body, Dash.muted, Modifier.width(64.dp))
             Txt(city ?: "Not set", Type.body, if (city == null) Dash.muted else Dash.ink, Modifier.weight(1f))
         }
         Spacer(Modifier.height(10.dp))
-        TextInput(query, { query = it }, "Search a city", 60)
+        TextInput(query, { query = it }, "Search a city or area, e.g. Gachibowli", 60)
         status?.let {
             Spacer(Modifier.height(8.dp))
             Txt(it, Type.meta, Dash.muted)

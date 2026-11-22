@@ -15,6 +15,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -52,9 +58,6 @@ data class Place(
 ) {
     val detail: String get() = listOfNotNull(admin1, country).distinct().joinToString(", ")
 }
-
-@Serializable
-private data class GeoResponse(val results: List<Place> = emptyList())
 
 /** WMO weather interpretation codes → one short word. */
 fun conditionWord(code: Int): String = when (code) {
@@ -162,17 +165,49 @@ class WeatherRepo private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * Place search via Photon (OpenStreetMap, no key). Unlike Open-Meteo's geocoder, which only
+     * knows towns and cities, it finds suburbs and neighbourhoods (e.g. Gachibowli), so the
+     * forecast can be for the exact area. Keeps places and administrative areas; falls back to
+     * any match (a landmark, say) when there are none.
+     */
     suspend fun searchCity(query: String): List<Place> = withContext(Dispatchers.IO) {
-        val url = "https://geocoding-api.open-meteo.com/v1/search".toHttpUrl().newBuilder()
-            .addQueryParameter("name", query)
-            .addQueryParameter("count", "6")
-            .addQueryParameter("language", "en")
-            .addQueryParameter("format", "json")
+        val url = "https://photon.komoot.io/api/".toHttpUrl().newBuilder()
+            .addQueryParameter("q", query)
+            .addQueryParameter("limit", "12")
+            .addQueryParameter("lang", "en")
             .build()
-        http.newCall(Request.Builder().url(url).build()).execute().use { r ->
+        val req = Request.Builder().url(url).header("User-Agent", "Deskdash/0.1 (tablet dashboard)").build()
+        http.newCall(req).execute().use { r ->
             if (!r.isSuccessful) error("HTTP ${r.code}")
-            json.decodeFromString<GeoResponse>(r.body!!.string()).results
+            val all = json.parseToJsonElement(r.body!!.string()).jsonObject["features"]?.jsonArray.orEmpty()
+                .mapNotNull { photonPlace(it.jsonObject) }
+            val places = all.filter { it.second }.map { it.first }
+            (places.ifEmpty { all.map { it.first } })
+                .distinctBy { "${it.name}|${it.detail}" }
+                .take(6)
         }
+    }
+
+    /** A Photon feature as a [Place], paired with whether it's a place/area (vs a road, shop…). */
+    private fun photonPlace(f: JsonObject): Pair<Place, Boolean>? {
+        val p = f["properties"]?.jsonObject ?: return null
+        fun str(k: String) = p[k]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+        val coords = f["geometry"]?.jsonObject?.get("coordinates")?.jsonArray ?: return null
+        val name = str("name") ?: return null
+        val key = str("osm_key")
+        val kind = str("osm_value")
+        val isArea = key == "place" || (key == "boundary" && kind == "administrative")
+        // "Suburb · Hyderabad, Telangana" or "City · Telangana"
+        val where = listOfNotNull(str("city")?.takeIf { it != name }, str("state")).joinToString(", ")
+        val label = kind?.takeIf { key == "place" }?.replaceFirstChar { it.uppercase() }
+        return Place(
+            name = name,
+            latitude = coords[1].jsonPrimitive.double,
+            longitude = coords[0].jsonPrimitive.double,
+            country = str("country"),
+            admin1 = listOfNotNull(label, where.ifEmpty { null }).joinToString(" · ").ifEmpty { null },
+        ) to isArea
     }
 
     suspend fun setCity(place: Place) {
