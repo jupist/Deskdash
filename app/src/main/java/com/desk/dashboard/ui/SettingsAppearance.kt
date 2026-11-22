@@ -40,12 +40,18 @@ internal fun AppearancePage() {
     fun set(block: (Appearance) -> Appearance) = scope.launch { AppearanceStore.update(context) { block(it) } }
 
     Section("Theme") {
+        // As many cards per row as fit, sized to fill it, so no card is left alone on a row.
+        val families = Palettes.all(context)
+        androidx.compose.foundation.layout.BoxWithConstraints {
+        val perRow = ((maxWidth + 10.dp) / (112.dp + 10.dp)).toInt().coerceIn(1, families.size)
+        // Rounded down with 1 dp to spare: pixel rounding must never push the last card onto a new row.
+        val cardW = (((maxWidth - 10.dp * (perRow - 1)) / perRow).value.toInt().dp - 1.dp).coerceAtMost(170.dp)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Palettes.all(context).forEach { fam ->
+            families.forEach { fam ->
                 val p = if (Look.palette.dark) fam.dark else fam.light
                 val on = a.family == fam.id
                 Column(
-                    Modifier.width(132.dp).clip(Dash.shape)
+                    Modifier.width(cardW).clip(Dash.shape)
                         .border(if (on) 2.dp else 1.dp, if (on) Dash.accentText else Dash.line, Dash.shape)
                         .pressable({ set { it.copy(family = fam.id) } }).padding(10.dp)
                 ) {
@@ -64,6 +70,7 @@ internal fun AppearancePage() {
                     Txt(fam.name, Type.bodySmall, if (on) Dash.accentText else Dash.ink)
                 }
             }
+        }
         }
         Spacer(Modifier.height(14.dp))
         SettingRow("Mode", "System follows the device's dark theme") {

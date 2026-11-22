@@ -300,7 +300,7 @@ private fun BackupPage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
             }
         }
     }
-    Section("Backup") {
+    Section(null) {
         Txt(
             "Saves your presets and layouts, appearance, dashboard, night and display settings, weather place, calendar " +
                 "choices, alarm, countdowns and iCal links to one file. Use it to move to a new device or keep a copy.",

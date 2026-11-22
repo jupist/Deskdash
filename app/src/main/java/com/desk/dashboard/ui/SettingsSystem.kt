@@ -75,7 +75,7 @@ fun NightSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
         )
     }
 
-    Section("Night mode") {
+    Section("Schedule") {
         SettingRow("Night mode", "Dim clock between these times; tap it to peek at the dashboard") {
             Switch(c.nightEnabled, onToggle = { scope.launch { DisplaySettings.setNightEnabled(context, !c.nightEnabled) } })
         }
@@ -143,7 +143,7 @@ fun DisplaySection() {
     val tick = rememberResumeTick()
     val home = remember(tick) { Device.isHomeApp(context) }
 
-    Section("Display") {
+    Section(null) {
         SettingRow("Keep screen on while charging", "Off the charger, the screen times out as usual") {
             Switch(c.keepAwakeCharging, onToggle = { scope.launch { DisplaySettings.setKeepAwake(context, !c.keepAwakeCharging) } })
         }
@@ -185,9 +185,9 @@ fun PermissionsSection() {
     val notifications = rememberRuntimePermission(Manifest.permission.POST_NOTIFICATIONS)
     val s = remember(tick) { SpecialAccess.read(context) }
 
-    Section("Permissions") {
-        PermRow("Calendar", "Today tile", calendar.granted, calendar.request)
-        PermRow("Notification access", "Now playing (Spotify)", s.listener) {
+    Section(null) {
+        PermRow("Calendar", "Agenda tile and night screen", calendar.granted, calendar.request)
+        PermRow("Notification access", "Now playing tile", s.listener) {
             Device.open(context, MediaRepo.get(context).accessIntent())
         }
         PermRow("Modify system settings", "Brightness slider", s.writeSettings) {
@@ -241,7 +241,7 @@ private class SpecialAccess(
     }
 }
 
-/** One-time prompt (SPEC: Samsung battery) so One UI doesn't put Deskdash to sleep. */
+/** One-time prompt so One UI doesn't put Deskdash to sleep. */
 @Composable
 fun BatteryPrompt(cfg: DisplayConfig) {
     val context = LocalContext.current

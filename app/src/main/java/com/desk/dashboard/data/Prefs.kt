@@ -9,7 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 
-/** All non-Room settings (SPEC.md › Data storage). */
+/** All non-Room settings. */
 val Context.prefs: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object Keys {

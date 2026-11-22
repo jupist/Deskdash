@@ -44,7 +44,7 @@ data class AlarmConfig(
 }
 
 /**
- * The app's own alarm (SPEC.md › Alarm). Settings live in a DataStore file in device-protected
+ * The app's own alarm. Settings live in a DataStore file in device-protected
  * storage so the boot receiver and ringing service can read them before the first unlock.
  */
 object Alarms {

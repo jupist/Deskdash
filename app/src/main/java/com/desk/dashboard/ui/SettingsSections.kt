@@ -37,6 +37,8 @@ import com.desk.dashboard.data.DashDb
 import com.desk.dashboard.data.CalendarSource
 import com.desk.dashboard.alarm.AlarmService
 import com.desk.dashboard.alarm.Alarms
+import android.Manifest
+import com.desk.dashboard.system.ensureAlarmPermissions
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -70,12 +72,16 @@ import java.util.Locale
 private val ddMon = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH)
 private val fullDate = DateTimeFormatter.ofPattern("EEE dd MMM yyyy", Locale.ENGLISH)
 private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
+private val nextRing = DateTimeFormatter.ofPattern("EEE dd MMM 'at' HH:mm", Locale.ENGLISH)
 
 @Composable
-internal fun Section(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun Section(title: String?, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth().clip(Dash.shape).background(Dash.tile).padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV)) {
-        Txt(title.uppercase(), Type.label, Dash.ink)
-        Spacer(Modifier.height(14.dp))
+        // Pages with a single section skip its title: the page title already says it.
+        if (title != null) {
+            Txt(title.uppercase(), Type.label, Dash.ink)
+            Spacer(Modifier.height(14.dp))
+        }
         content()
     }
 }
@@ -261,7 +267,7 @@ internal fun WeatherSection() {
         )
     }
 
-    Section("Weather") {
+    Section(null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("Place", Type.body, Dash.muted, Modifier.width(64.dp))
             Txt(city ?: "Not set", Type.body, if (city == null) Dash.muted else Dash.ink, Modifier.weight(1f))
@@ -294,13 +300,10 @@ internal fun WeatherSection() {
             }
         }
         Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("Units", Type.body, Dash.muted, Modifier.width(64.dp))
-            listOf("celsius" to "°C", "fahrenheit" to "°F").forEach { (value, label) ->
-                val on = unit == value
-                MiniButton(label, if (on) Dash.onAccent else Dash.muted, if (on) Dash.accent else Dash.line) {
-                    if (!on) scope.launch { repo.setUnit(value) }
-                }
+            Segmented(listOf("celsius", "fahrenheit"), unit, { if (it == "celsius") "°C" else "°F" }) { value ->
+                if (value != unit) scope.launch { repo.setUnit(value) }
             }
         }
     }
@@ -360,7 +363,7 @@ private fun accountLabel(account: String, type: String) = when (type) {
     "LOCAL" -> "On this tablet"
     "com.osp.app.signin" -> "Samsung account"
     else -> account.ifBlank { type }
-}.uppercase()
+}.let { if ('@' in it) it else it.uppercase() } // email addresses keep their case
 
 @Composable
 private fun Checkbox(checked: Boolean) {
@@ -379,6 +382,9 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(Alarms.cached)
     val c = cfg ?: return
 
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) ensureAlarmPermissions(context) {}
+    }
     val soundPicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
         val uri: Uri? = if (Build.VERSION.SDK_INT >= 33) {
@@ -396,7 +402,20 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
         else runCatching { RingtoneManager.getRingtone(context, uri)?.getTitle(context) }.getOrNull() ?: "Custom sound"
     }
 
-    Section("Alarm") {
+    Section(null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Txt("Alarm", Type.bodySmall, Dash.ink)
+                Spacer(Modifier.height(2.dp))
+                Txt(if (c.enabled) "Rings ${c.next().format(nextRing)}" else "Off", Type.meta, Dash.muted)
+            }
+            Switch(c.enabled, onToggle = {
+                val on = !c.enabled
+                if (on) ensureAlarmPermissions(context) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                scope.launch { Alarms.setEnabled(context, on) }
+            })
+        }
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Field("Time", Modifier.weight(1f)) {
                 PickerField("%02d:%02d".format(c.time.hour, c.time.minute), "") {
@@ -460,18 +479,13 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
         }
         Spacer(Modifier.height(14.dp))
         Field("Snooze") {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Alarms.SNOOZE_CHOICES.forEach { m ->
-                    val on = m == c.snoozeMinutes
-                    MiniButton("$m min", if (on) Dash.onAccent else Dash.muted, if (on) Dash.accent else Dash.line) {
-                        scope.launch { Alarms.setSnoozeMinutes(context, m) }
-                    }
-                }
+            Segmented(Alarms.SNOOZE_CHOICES, c.snoozeMinutes, { "$it min" }) { m ->
+                scope.launch { Alarms.setSnoozeMinutes(context, m) }
             }
         }
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Txt("Turn the alarm on from the dashboard tile.", Type.meta, Dash.muted, Modifier.weight(1f))
+            Txt("Plays the alarm sound now, to check the volume", Type.meta, Dash.muted, Modifier.weight(1f))
             MiniButton("Test ring", Dash.ink) { AlarmService.ring(context) }
         }
     }

@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 
-/** 16×16 icons lifted from mockup.html. Tint is applied by the caller via ColorFilter. */
+/** 16×16 line icons. Tint is applied by the caller via ColorFilter. */
 object DashIcons {
     private fun stroke(d: String, width: Float = 1.4f) = ImageVector.Builder(
         defaultWidth = 16.dp, defaultHeight = 16.dp, viewportWidth = 16f, viewportHeight = 16f,

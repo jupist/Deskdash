@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import java.time.LocalTime
 
-/** Night mode and display settings (SPEC.md › Settings › Night mode / Display). */
+/** Night mode and display settings. */
 data class DisplayConfig(
     val nightEnabled: Boolean = true,
     val nightStart: LocalTime = LocalTime.of(23, 0),
