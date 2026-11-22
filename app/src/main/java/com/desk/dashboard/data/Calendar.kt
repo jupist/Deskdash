@@ -13,6 +13,8 @@ import android.provider.CalendarContract.Events
 import android.provider.CalendarContract.Instances
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.core.edit
+import com.desk.dashboard.calendar.Event
+import com.desk.dashboard.calendar.OpenTarget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -37,16 +39,6 @@ data class DeviceCalendar(
 ) {
     val isGoogle get() = accountType == "com.google"
 }
-
-data class CalEvent(
-    val eventId: Long,
-    val title: String,
-    val begin: Long,
-    val end: Long,
-    val allDay: Boolean,
-    /** Local start; for all-day events this is midnight of the (UTC-stored) date. */
-    val start: LocalDateTime,
-)
 
 object CalendarSource {
     fun hasPermission(context: Context) =
@@ -92,45 +84,59 @@ object CalendarSource {
     suspend fun effectiveSelection(context: Context): Set<Long> =
         selectedIds(context).first() ?: defaultSelection(calendars(context))
 
-    /** Instances that haven't ended yet, from now until the end of tomorrow, soonest first. */
-    suspend fun upcoming(context: Context, ids: Set<Long>, limit: Int = 3): List<CalEvent> = withContext(Dispatchers.IO) {
+    /**
+     * Instances from the selected calendars that haven't ended yet, from now until the end of
+     * the day [days] - 1 days from today (1 = today only).
+     */
+    suspend fun events(context: Context, ids: Set<Long>, days: Int): List<Event> = withContext(Dispatchers.IO) {
         if (!hasPermission(context) || ids.isEmpty()) return@withContext emptyList()
         val zone = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
-        val endOfTomorrow = LocalDate.now(zone).plusDays(2).atStartOfDay(zone).toInstant().toEpochMilli()
+        val today = LocalDate.now(zone)
+        val lastDay = today.plusDays((days - 1).toLong().coerceAtLeast(0))
+        val endMs = lastDay.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         // Query from yesterday so all-day events (stored at UTC midnight) and ongoing events are included.
         val from = now - 36 * 3600_000L
         val uri = Instances.CONTENT_URI.buildUpon().also {
             ContentUris.appendId(it, from)
-            ContentUris.appendId(it, endOfTomorrow + 24 * 3600_000L)
+            ContentUris.appendId(it, endMs + 24 * 3600_000L)
         }.build()
-        val projection = arrayOf(Instances.EVENT_ID, Instances.TITLE, Instances.BEGIN, Instances.END, Instances.ALL_DAY)
+        val projection = arrayOf(
+            Instances.EVENT_ID, Instances.TITLE, Instances.BEGIN, Instances.END, Instances.ALL_DAY,
+            Instances.DISPLAY_COLOR, Instances.CALENDAR_DISPLAY_NAME, Instances.EVENT_LOCATION,
+        )
         val selection = "${Instances.CALENDAR_ID} IN (${ids.joinToString(",")})"
-        val today = LocalDate.now(zone)
-        val out = mutableListOf<CalEvent>()
+        val out = mutableListOf<Event>()
         context.contentResolver.query(uri, projection, selection, null, "${Instances.BEGIN} ASC")?.use { c ->
             while (c.moveToNext()) {
                 val allDay = c.getInt(4) == 1
                 val begin = c.getLong(2)
                 val end = c.getLong(3)
-                val start = if (allDay) {
-                    Instant.ofEpochMilli(begin).atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay()
+                val start: LocalDateTime
+                val finish: LocalDateTime
+                if (allDay) {
+                    start = Instant.ofEpochMilli(begin).atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay()
+                    finish = Instant.ofEpochMilli(end).atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay()
                 } else {
-                    Instant.ofEpochMilli(begin).atZone(zone).toLocalDateTime()
+                    start = Instant.ofEpochMilli(begin).atZone(zone).toLocalDateTime()
+                    finish = Instant.ofEpochMilli(end).atZone(zone).toLocalDateTime()
                 }
                 val keep = if (allDay) {
-                    val lastDay = Instant.ofEpochMilli(end - 1).atZone(ZoneOffset.UTC).toLocalDate()
-                    !lastDay.isBefore(today) && !start.toLocalDate().isAfter(today.plusDays(1))
+                    !finish.toLocalDate().minusDays(1).isBefore(today) && !start.toLocalDate().isAfter(lastDay)
                 } else {
-                    end > now && begin < endOfTomorrow
+                    end > now && begin < endMs
                 }
-                if (keep) out += CalEvent(c.getLong(0), c.getString(1)?.ifBlank { null } ?: "(No title)", begin, end, allDay, start)
+                if (keep) out += Event(
+                    key = "device:${c.getLong(0)}:$begin",
+                    title = c.getString(1)?.ifBlank { null } ?: "(No title)",
+                    start = start, end = finish, allDay = allDay,
+                    color = c.getInt(5), calendar = c.getString(6) ?: "",
+                    location = c.getString(7)?.ifBlank { null },
+                    open = OpenTarget.Device(c.getLong(0), begin, end),
+                )
             }
         }
-        // All-day events that started earlier still count for today.
-        out.map { if (it.allDay && it.start.toLocalDate().isBefore(today)) it.copy(start = today.atStartOfDay()) else it }
-            .sortedWith(compareBy({ it.start.toLocalDate() }, { !it.allDay }, { it.start }))
-            .take(limit)
+        out
     }
 
     /** Emits whenever the calendar provider changes (e.g. after a Google sync). */
@@ -145,9 +151,9 @@ object CalendarSource {
         awaitClose { if (registered) context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    fun openIntent(e: CalEvent): Intent =
-        Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(Events.CONTENT_URI, e.eventId))
-            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, e.begin)
-            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, e.end)
+    fun openIntent(t: OpenTarget.Device): Intent =
+        Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(Events.CONTENT_URI, t.eventId))
+            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, t.begin)
+            .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, t.end)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }

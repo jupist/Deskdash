@@ -22,6 +22,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.desk.dashboard.alarm.AlarmConfig
 import com.desk.dashboard.alarm.Alarms
 import com.desk.dashboard.system.rememberMinute
+import com.desk.dashboard.system.rememberSecond
+import com.desk.dashboard.system.is24h
+import com.desk.dashboard.calendar.CalendarHub
+import com.desk.dashboard.calendar.Event
+import com.desk.dashboard.data.DisplayConfig
+import com.desk.dashboard.modules.timeText
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import java.time.LocalDateTime
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,23 +48,44 @@ private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
 private val NightInk = Color(0xFF6E6E6A)
 private val NightMuted = Color(0xFF45454A)
 
-/** Night mode: a large muted clock and the next alarm. Tap anywhere to peek at the dashboard. */
+/**
+ * Night mode: a large muted clock, sized to the screen, with the next alarm and event under it.
+ * Tap anywhere to peek at the dashboard.
+ */
 @Composable
-fun NightScreen(onTap: () -> Unit) {
+fun NightScreen(cfg: DisplayConfig?, onTap: () -> Unit) {
     val context = LocalContext.current
-    val now by rememberMinute()
+    val seconds = cfg?.nightSeconds == true
+    val now = if (seconds) rememberSecond().value else rememberMinute().value
     val alarm by remember { Alarms.config(context) }.collectAsStateWithLifecycle(null)
+    var next by remember { mutableStateOf<Event?>(null) }
+    val minute = now.withSecond(0)
+    LaunchedEffect(minute, cfg?.nightEvent) {
+        next = if (cfg?.nightEvent == true) CalendarHub.events(context, 2).firstOrNull { !it.allDay && it.start.isAfter(LocalDateTime.now()) } else null
+    }
+    val h24 = is24h(context)
+    val (time, ampm) = timeText(now, h24, seconds)
 
     Box(
         Modifier.fillMaxSize().background(Color.Black).clickable(
             interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTap,
-        ),
+        ).padding(32.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Txt(now.format(hhmm), Type.clock.copy(fontSize = 220.sp, lineHeight = 200.sp), NightInk)
+            FitText(
+                time, Type.clock, NightInk, Modifier.fillMaxWidth().fillMaxHeight(0.5f),
+                sample = (if (h24) "00:00" else "10:00") + if (seconds) ":00" else "", maxSize = 260f,
+            )
+            if (ampm != null) Txt(ampm, Type.label.copy(fontSize = 16.sp), NightMuted)
             Spacer(Modifier.height(18.dp))
-            Txt(alarmLine(alarm, now.toLocalDate()), Type.label.copy(fontSize = 16.sp, lineHeight = 20.sp), NightMuted)
+            if (cfg?.nightAlarm != false) Txt(alarmLine(alarm, now.toLocalDate()), Type.label.copy(fontSize = 16.sp, lineHeight = 22.sp), NightMuted)
+            next?.let { e ->
+                Spacer(Modifier.height(8.dp))
+                val (t, ap) = timeText(e.start, h24)
+                val day = if (e.start.toLocalDate() != now.toLocalDate()) "TMRW " else ""
+                Txt("$day$t${ap?.let { " $it" } ?: ""} · ${e.title}".uppercase(), Type.label.copy(fontSize = 14.sp, lineHeight = 20.sp), NightMuted)
+            }
         }
     }
 }

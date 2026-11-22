@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,8 +54,11 @@ class AlarmActivity : ComponentActivity() {
             LaunchedEffect(ringing) { if (!ringing) finish() }
             val snooze by remember { Alarms.config(this) }.collectAsStateWithLifecycle(null)
             BackHandler { /* back must not silently dismiss the alarm */ }
+            val label by AlarmService.label.collectAsStateWithLifecycle()
+            val canSnooze by AlarmService.snoozable.collectAsStateWithLifecycle()
             AlarmScreen(
-                snoozeMinutes = snooze?.snoozeMinutes ?: 9,
+                label = label,
+                snoozeMinutes = if (canSnooze) snooze?.snoozeMinutes ?: 9 else null,
                 onStop = { AlarmService.stop(this); finish() },
                 onSnooze = { AlarmService.snooze(this); finish() },
             )
@@ -66,23 +70,23 @@ private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
 private val day = DateTimeFormatter.ofPattern("EEE dd MMM", Locale.ENGLISH)
 
 @Composable
-private fun AlarmScreen(snoozeMinutes: Int, onStop: () -> Unit, onSnooze: () -> Unit) {
+private fun AlarmScreen(label: String, snoozeMinutes: Int?, onStop: () -> Unit, onSnooze: () -> Unit) {
     val now by rememberMinute()
     Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
         // Time, on slate like the dashboard's time tile.
         Column(
-            Modifier.fillMaxWidth().weight(1.2f).background(Dash.slate).padding(horizontal = 32.dp, vertical = 24.dp),
+            Modifier.fillMaxWidth().weight(1.2f).clip(Dash.shape).background(Dash.accent).padding(horizontal = 32.dp, vertical = 24.dp),
         ) {
-            Txt("ALARM", Type.label, Dash.onSlate)
+            Txt(label.uppercase(), Type.label, Dash.onAccent)
             Spacer(Modifier.weight(1f))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                Txt(now.format(hhmm), Type.clock.copy(fontSize = 160.sp, lineHeight = 140.sp), Dash.onSlate, Modifier.weight(1f))
-                Txt(now.format(day).uppercase(), Type.body.copy(fontSize = 18.sp, lineHeight = 22.sp), Dash.onSlate)
+                Txt(now.format(hhmm), Type.clock.copy(fontSize = 160.sp, lineHeight = 140.sp), Dash.onAccent, Modifier.weight(1f))
+                Txt(now.format(day).uppercase(), Type.body.copy(fontSize = 18.sp, lineHeight = 22.sp), Dash.onAccent)
             }
         }
         Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(Dash.gap)) {
-            BigButton("Snooze $snoozeMinutes min", Dash.tile, Dash.ink, Dash.line, Modifier.weight(1f), onSnooze)
-            BigButton("Stop", Dash.ink, Dash.frame, null, Modifier.weight(1f), onStop)
+            if (snoozeMinutes != null) BigButton("Snooze $snoozeMinutes min", Dash.tile, Dash.ink, Dash.line, Modifier.weight(1f), onSnooze)
+            BigButton(if (snoozeMinutes != null) "Stop" else "Dismiss", Dash.ink, Dash.frame, null, Modifier.weight(1f), onStop)
         }
     }
 }

@@ -43,10 +43,24 @@ class AlarmService : Service() {
         private const val NOTIF_ID = 7
         private const val MAX_RING_MS = 10 * 60_000L
 
+        private const val EXTRA_LABEL = "label"
+        private const val EXTRA_SNOOZABLE = "snoozable"
+        private const val EXTRA_TIMEOUT = "timeout"
+
         private val _ringing = MutableStateFlow(false)
         val ringing: StateFlow<Boolean> = _ringing
 
+        /** What's ringing: "Alarm", or a timer's name. Timers can't be snoozed. */
+        val label = MutableStateFlow("Alarm")
+        val snoozable = MutableStateFlow(true)
+
         fun ring(context: Context) = context.startForegroundService(intent(context, ACTION_RING))
+
+        /** Rings for a finished timer: same screen and sound, no snooze, stops after 2 minutes. */
+        fun ringTimer(context: Context, name: String) = context.startForegroundService(
+            intent(context, ACTION_RING).putExtra(EXTRA_LABEL, name).putExtra(EXTRA_SNOOZABLE, false)
+                .putExtra(EXTRA_TIMEOUT, 2 * 60_000L)
+        )
         fun stop(context: Context) = context.startService(intent(context, ACTION_STOP))
         fun snooze(context: Context) = context.startService(intent(context, ACTION_SNOOZE))
 
@@ -59,12 +73,20 @@ class AlarmService : Service() {
     private var tone: ToneGenerator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val timeout = Runnable { stopRinging() }
+    private var maxRing = MAX_RING_MS
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_RING -> startRinging()
+            ACTION_RING -> {
+                if (!_ringing.value) {
+                    label.value = intent.getStringExtra(EXTRA_LABEL) ?: "Alarm"
+                    snoozable.value = intent.getBooleanExtra(EXTRA_SNOOZABLE, true)
+                    maxRing = intent.getLongExtra(EXTRA_TIMEOUT, MAX_RING_MS)
+                }
+                startRinging()
+            }
             ACTION_SNOOZE -> {
                 stopRinging()
                 // Book the snooze before the process may die.
@@ -83,8 +105,8 @@ class AlarmService : Service() {
 
         wakeLock = getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "desk:alarm")
-            .apply { acquire(MAX_RING_MS + 5_000) }
-        handler.postDelayed(timeout, MAX_RING_MS)
+            .apply { acquire(maxRing + 5_000) }
+        handler.postDelayed(timeout, maxRing)
 
         // If the dashboard is in front, the notification would only show as a heads-up; open the
         // alarm screen directly too. (When the screen is off, the full-screen intent handles it.)
@@ -170,14 +192,14 @@ class AlarmService : Service() {
         ).build()
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_alarm)
-            .setContentTitle("Alarm")
+            .setContentTitle(label.value)
             .setContentText("Tap to open")
             .setCategory(Notification.CATEGORY_ALARM)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setFullScreenIntent(full, true)
             .setContentIntent(full)
-            .addAction(action("Snooze", ACTION_SNOOZE))
+            .apply { if (snoozable.value) addAction(action("Snooze", ACTION_SNOOZE)) }
             .addAction(action("Stop", ACTION_STOP))
             .build()
     }

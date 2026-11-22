@@ -196,10 +196,10 @@ fun PermissionsSection() {
 
 @Composable
 private fun PermRow(title: String, why: String, granted: Boolean, grant: () -> Unit) =
-    SettingRow(title, why) { if (granted) Granted() else MiniButton("Grant", Dash.ink, Dash.slate, grant) }
+    SettingRow(title, why) { if (granted) Granted() else MiniButton("Grant", Dash.ink, Dash.accent, grant) }
 
 @Composable
-private fun Granted() = Txt("GRANTED", Type.meta.copy(letterSpacing = Type.small.letterSpacing), Dash.slateLight)
+private fun Granted() = Txt("GRANTED", Type.meta.copy(letterSpacing = Type.small.letterSpacing), Dash.accentText)
 
 private fun pkg(context: Context) = Uri.parse("package:${context.packageName}")
 

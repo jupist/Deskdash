@@ -1,0 +1,42 @@
+package com.desk.dashboard.modules
+
+/** Short, well-attested lines by authors long in the public domain (and traditional proverbs). */
+object Quotes {
+    val all: List<Pair<String, String>> = listOf(
+        "We suffer more often in imagination than in reality." to "Seneca",
+        "While we are postponing, life speeds by." to "Seneca",
+        "Begin at once to live, and count each separate day as a separate life." to "Seneca",
+        "It is not that we have a short time to live, but that we waste a lot of it." to "Seneca",
+        "Difficulties strengthen the mind, as labour does the body." to "Seneca",
+        "Waste no more time arguing what a good man should be. Be one." to "Marcus Aurelius",
+        "Very little is needed to make a happy life." to "Marcus Aurelius",
+        "Dwell on the beauty of life. Watch the stars, and see yourself running with them." to "Marcus Aurelius",
+        "No man is free who is not master of himself." to "Epictetus",
+        "First say to yourself what you would be; and then do what you have to do." to "Epictetus",
+        "Well begun is half done." to "Aristotle",
+        "The journey of a thousand miles begins with a single step." to "Lao Tzu",
+        "Knowledge is power." to "Francis Bacon",
+        "To be, rather than to seem." to "Cicero",
+        "There is nothing either good or bad, but thinking makes it so." to "William Shakespeare",
+        "Our doubts are traitors, and make us lose the good we oft might win by fearing to attempt." to "William Shakespeare",
+        "Brevity is the soul of wit." to "William Shakespeare",
+        "Knowing is not enough; we must apply. Willing is not enough; we must do." to "Johann Wolfgang von Goethe",
+        "Lost time is never found again." to "Benjamin Franklin",
+        "Well done is better than well said." to "Benjamin Franklin",
+        "Haste makes waste." to "Benjamin Franklin",
+        "If one advances confidently in the direction of his dreams, he will meet with a success unexpected in common hours." to "Henry David Thoreau",
+        "It's not enough to be busy; so are the ants. The question is: what are we busy about?" to "Henry David Thoreau",
+        "Our life is frittered away by detail. Simplify, simplify." to "Henry David Thoreau",
+        "Finish each day and be done with it." to "Ralph Waldo Emerson",
+        "Genius is one per cent inspiration and ninety-nine per cent perspiration." to "Thomas Edison",
+        "He who has a why to live can bear almost any how." to "Friedrich Nietzsche",
+        "Do what you can, with what you have, where you are." to "Theodore Roosevelt",
+        "Rest is not idleness." to "John Lubbock",
+        "Time is what we want most, but what we use worst." to "William Penn",
+        "Well-timed silence hath more eloquence than speech." to "Martin Farquhar Tupper",
+        "Fall seven times, stand up eight." to "Japanese proverb",
+        "Be not afraid of going slowly; be afraid only of standing still." to "Chinese proverb",
+        "Many hands make light work." to "English proverb",
+        "Slow and steady wins the race." to "Aesop",
+    )
+}

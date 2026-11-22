@@ -28,5 +28,7 @@ class AlarmReceiver : BroadcastReceiver() {
 class RescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         async { Alarms.reschedule(context) }
+        // Timers live in normal (credential) storage: only readable once the user has unlocked.
+        if (context.getSystemService(android.os.UserManager::class.java).isUserUnlocked) Timers.rescheduleAll(context)
     }
 }

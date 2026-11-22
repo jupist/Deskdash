@@ -72,47 +72,8 @@ private val fullDate = DateTimeFormatter.ofPattern("EEE dd MMM yyyy", Locale.ENG
 private val hhmm = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
-fun SettingsScreen(onDone: () -> Unit) {
-    BackHandler(onBack = onDone)
-    var overlay by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-
-    Box(Modifier.fillMaxSize().background(Dash.frame)) {
-        Column(
-            Modifier.fillMaxSize().imePadding().padding(Dash.gap),
-            verticalArrangement = Arrangement.spacedBy(Dash.gap),
-        ) {
-            Row(
-                Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Txt("Settings", Type.secondary, Dash.ink, Modifier.weight(1f))
-                OutlineButton("Done", onClick = onDone)
-            }
-            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(Dash.gap)) {
-                Column(Modifier.weight(1.3f).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                    DatesSection(showOverlay = { overlay = it })
-                }
-                Column(
-                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(Dash.gap),
-                ) {
-                    // Weather first: its search results then stay above the on-screen keyboard.
-                    WeatherSection()
-                    AlarmSection(showOverlay = { overlay = it })
-                    CalendarSection()
-                    NightSection(showOverlay = { overlay = it })
-                    DisplaySection()
-                    PermissionsSection()
-                }
-            }
-        }
-        overlay?.invoke()
-    }
-}
-
-@Composable
 internal fun Section(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().background(Dash.tile).padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV)) {
+    Column(modifier.fillMaxWidth().clip(Dash.shape).background(Dash.tile).padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV)) {
         Txt(title.uppercase(), Type.label, Dash.ink)
         Spacer(Modifier.height(14.dp))
         content()
@@ -159,7 +120,7 @@ private class DateForm(today: LocalDate) {
 }
 
 @Composable
-private fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
+internal fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val dao = DashDb.get(LocalContext.current).dates()
     val today by rememberToday()
     val entries by remember(today) { dao.upcoming(today) }.collectAsStateWithLifecycle(emptyList())
@@ -183,10 +144,10 @@ private fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Txt(e.date.format(ddMon).uppercase(), Type.display16.copy(fontSize = 15.sp), Dash.ink, Modifier.width(64.dp))
-                        Txt(e.title, Type.body, if (e.id == form.editingId) Dash.slateLight else Dash.ink, Modifier.weight(1f))
+                        Txt(e.title, Type.body, if (e.id == form.editingId) Dash.accentText else Dash.ink, Modifier.weight(1f))
                         if (confirmDelete == e.id) {
                             Txt("Delete?", Type.meta, Dash.ink)
-                            MiniButton("Yes", Dash.ink, Dash.slate) {
+                            MiniButton("Yes", Dash.ink, Dash.accent) {
                                 scope.launch { dao.delete(e) }
                                 if (form.editingId == e.id) form.reset()
                                 confirmDelete = null
@@ -244,14 +205,14 @@ private fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                     form.reset()
                 }
                 if (form.editingId != null) MiniButton("Cancel") { form.reset() }
-                form.error?.let { Txt(it, Type.meta, Dash.slateLight) }
+                form.error?.let { Txt(it, Type.meta, Dash.accentText) }
             }
         }
     }
 }
 
 @Composable
-private fun WeatherSection() {
+internal fun WeatherSection() {
     val context = LocalContext.current
     val repo = remember { WeatherRepo.get(context) }
     val scope = rememberCoroutineScope()
@@ -310,7 +271,7 @@ private fun WeatherSection() {
             Txt("Units", Type.body, Dash.muted, Modifier.width(64.dp))
             listOf("celsius" to "°C", "fahrenheit" to "°F").forEach { (value, label) ->
                 val on = unit == value
-                MiniButton(label, if (on) Dash.onSlate else Dash.muted, if (on) Dash.slate else Dash.line) {
+                MiniButton(label, if (on) Dash.onAccent else Dash.muted, if (on) Dash.accent else Dash.line) {
                     if (!on) scope.launch { repo.setUnit(value) }
                 }
             }
@@ -319,16 +280,18 @@ private fun WeatherSection() {
 }
 
 @Composable
-private fun CalendarSection() {
+internal fun CalendarSection() {
     val context = LocalContext.current
     val permission = rememberCalendarPermission()
     val scope = rememberCoroutineScope()
 
-    Section("Calendar") {
+    Section("On this device") {
+        Txt("Calendars synced by the device's accounts: Google, Samsung, Outlook, DAVx5 and others.", Type.meta, Dash.muted, maxLines = 3)
+        Spacer(Modifier.height(10.dp))
         if (!permission.granted) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Txt("Calendar access is off", Type.body, Dash.muted, Modifier.weight(1f))
-                MiniButton("Grant", Dash.ink, Dash.slate, permission.request)
+                MiniButton("Grant", Dash.ink, Dash.accent, permission.request)
             }
             return@Section
         }
@@ -349,7 +312,7 @@ private fun CalendarSection() {
                 val on = cal.id in selected
                 Row(
                     Modifier.fillMaxWidth().clickable {
-                        scope.launch { CalendarSource.setSelected(context, if (on) selected - cal.id else selected + cal.id) }
+                        scope.launch { CalendarSource.setSelected(context, if (on) selected - cal.id else selected + cal.id); com.desk.dashboard.calendar.CalendarHub.touch() }
                     }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -376,14 +339,14 @@ private fun accountLabel(account: String, type: String) = when (type) {
 private fun Checkbox(checked: Boolean) {
     Box(
         Modifier.size(18.dp)
-            .background(if (checked) Dash.slate else Color.Transparent)
-            .border(1.dp, if (checked) Dash.slate else Dash.muted),
+            .background(if (checked) Dash.accent else Color.Transparent)
+            .border(1.dp, if (checked) Dash.accent else Dash.muted),
         contentAlignment = Alignment.Center,
-    ) { if (checked) Txt("✓", Type.meta.copy(fontSize = 12.sp, lineHeight = 12.sp), Dash.onSlate) }
+    ) { if (checked) Txt("✓", Type.meta.copy(fontSize = 12.sp, lineHeight = 12.sp), Dash.onAccent) }
 }
 
 @Composable
-private fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
+internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val cfg by remember { Alarms.config(context) }.collectAsStateWithLifecycle(null)
@@ -456,12 +419,12 @@ private fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                     val on = d in c.days
                     Box(
                         Modifier.size(30.dp)
-                            .background(if (on) Dash.slate else Color.Transparent)
-                            .border(1.dp, if (on) Dash.slate else Dash.line)
+                            .background(if (on) Dash.accent else Color.Transparent)
+                            .border(1.dp, if (on) Dash.accent else Dash.line)
                             .clickable(enabled = !c.once) { scope.launch { Alarms.setDays(context, if (on) c.days - d else c.days + d) } },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Txt(d.name.take(1), Type.meta.copy(fontSize = 11.sp), if (on) Dash.onSlate else Dash.muted)
+                        Txt(d.name.take(1), Type.meta.copy(fontSize = 11.sp), if (on) Dash.onAccent else Dash.muted)
                     }
                 }
                 Spacer(Modifier.width(6.dp))
@@ -473,7 +436,7 @@ private fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Alarms.SNOOZE_CHOICES.forEach { m ->
                     val on = m == c.snoozeMinutes
-                    MiniButton("$m min", if (on) Dash.onSlate else Dash.muted, if (on) Dash.slate else Dash.line) {
+                    MiniButton("$m min", if (on) Dash.onAccent else Dash.muted, if (on) Dash.accent else Dash.line) {
                         scope.launch { Alarms.setSnoozeMinutes(context, m) }
                     }
                 }

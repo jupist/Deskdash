@@ -13,8 +13,8 @@ android {
         applicationId = "com.desk.dashboard"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "1.0.0"
     }
 
     buildTypes {
@@ -33,6 +33,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -59,4 +60,10 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
+
+    // Calendars: iCalendar parsing with recurrence (ICS feeds/files) and Google sign-in.
+    implementation("net.sf.biweekly:biweekly:0.6.8")
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

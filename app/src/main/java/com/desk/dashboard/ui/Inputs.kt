@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
@@ -76,7 +78,7 @@ fun TextInput(
         keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
         modifier = modifier.fillMaxWidth(),
         decorationBox = { inner ->
-            Row(Modifier.border(1.dp, Dash.line).then(fieldPad), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.border(1.dp, Dash.line, Dash.smallShape).then(fieldPad), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     if (value.isEmpty()) Txt(placeholder, Type.body, Dash.muted)
                     inner()
@@ -92,7 +94,7 @@ fun TextInput(
 @Composable
 fun PickerField(text: String?, placeholder: String, modifier: Modifier = Modifier, onClear: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().border(1.dp, Dash.line).clickable(onClick = onClick).then(fieldPad),
+        modifier.fillMaxWidth().clip(Dash.smallShape).border(1.dp, Dash.line, Dash.smallShape).clickable(onClick = onClick).then(fieldPad),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Txt(text ?: placeholder, Type.body, if (text == null) Dash.muted else Dash.ink, Modifier.weight(1f))
@@ -109,10 +111,10 @@ fun <T> Dropdown(selected: T, options: List<T>, label: (T) -> String, onSelect: 
         PickerField(label(selected) + "  ▾", "") { open = true }
         if (open) {
             Popup(onDismissRequest = { open = false }, properties = PopupProperties(focusable = true)) {
-                Column(Modifier.width(200.dp).background(Dash.tile).border(1.dp, Dash.line)) {
+                Column(Modifier.width(200.dp).clip(Dash.smallShape).background(Dash.tile).border(1.dp, Dash.line, Dash.smallShape)) {
                     options.forEach { o ->
                         Txt(
-                            label(o), Type.body, if (o == selected) Dash.slateLight else Dash.ink,
+                            label(o), Type.body, if (o == selected) Dash.accentText else Dash.ink,
                             Modifier.fillMaxWidth().clickable { onSelect(o); open = false }.padding(12.dp),
                         )
                     }
@@ -126,33 +128,41 @@ fun <T> Dropdown(selected: T, options: List<T>, label: (T) -> String, onSelect: 
 fun MiniButton(text: String, color: Color = Dash.muted, border: Color = Dash.line, onClick: () -> Unit) {
     Txt(
         text.uppercase(), Type.meta.copy(letterSpacing = Type.small.letterSpacing), color,
-        Modifier.border(1.dp, border).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 7.dp),
+        Modifier.clip(Dash.smallShape).border(1.dp, border, Dash.smallShape).pressable(onClick, 0.94f).padding(horizontal = 10.dp, vertical = 7.dp),
     )
 }
 
 @Composable
 fun PrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Txt(
-        text.uppercase(), Type.label, Dash.onSlate,
-        modifier.background(Dash.slate).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 11.dp),
+        text.uppercase(), Type.label, Dash.onAccent,
+        modifier.clip(Dash.smallShape).background(Dash.accent).pressable(onClick, 0.95f).padding(horizontal = 16.dp, vertical = 11.dp),
     )
 }
 
 /** Full-screen scrim with a centered panel. Tapping outside the panel dismisses. */
 @Composable
 fun Overlay(onDismiss: () -> Unit, width: Dp, content: @Composable ColumnScope.() -> Unit) {
+    // Pops in: quick fade and a slight scale, so dialogs feel attached to the tap that opened them.
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
     Box(
-        Modifier.fillMaxSize().background(Color(0xCC000000)).clickable(
+        Modifier.fillMaxSize().background(Dash.scrim).clickable(
             interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss,
-        ),
+        ).padding(16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            Modifier.width(width).background(Dash.tile).clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {},
-            ).padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV),
-            content = content,
-        )
+        androidx.compose.animation.AnimatedVisibility(
+            shown,
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(140)) +
+                androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(160), initialScale = 0.96f),
+        ) {
+            Column(
+                Modifier.widthIn(max = width).fillMaxWidth().clip(Dash.shape).background(Dash.tile).clickable(
+                    interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {},
+                ).padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV),
+                content = content,
+            )
+        }
     }
 }
 
@@ -197,11 +207,11 @@ fun DatePickerOverlay(initial: LocalDate?, min: LocalDate, onPick: (LocalDate) -
 
 @Composable
 private fun BoxScope.DayCell(date: LocalDate, enabled: Boolean, selected: Boolean, today: Boolean, onClick: () -> Unit) {
-    val bg = if (selected) Dash.slate else Color.Transparent
+    val bg = if (selected) Dash.accent else Color.Transparent
     val fg = when {
-        selected -> Dash.onSlate
+        selected -> Dash.onAccent
         !enabled -> Dash.line
-        today -> Dash.slateLight
+        today -> Dash.accentText
         else -> Dash.ink
     }
     Box(
@@ -256,11 +266,11 @@ private fun <T> ChipGrid(items: List<T>, columns: Int, selected: (T) -> Boolean,
                     val on = selected(item)
                     Box(
                         Modifier.weight(1f).height(32.dp)
-                            .background(if (on) Dash.slate else Color.Transparent)
-                            .border(1.dp, if (on) Dash.slate else Dash.line)
+                            .background(if (on) Dash.accent else Color.Transparent)
+                            .border(1.dp, if (on) Dash.accent else Dash.line)
                             .clickable { onClick(item) },
                         contentAlignment = Alignment.Center,
-                    ) { Txt(label(item), Type.body, if (on) Dash.onSlate else Dash.ink) }
+                    ) { Txt(label(item), Type.body, if (on) Dash.onAccent else Dash.ink) }
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }

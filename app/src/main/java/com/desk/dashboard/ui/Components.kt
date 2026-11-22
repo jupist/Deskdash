@@ -1,95 +1,97 @@
 package com.desk.dashboard.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.roundToInt
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
 
-/** A grid placement, 1-based like SPEC.md's tile table (columns 1–12, rows 1–3, inclusive). */
-data class Cell(val colStart: Int, val colEnd: Int, val rowStart: Int, val rowEnd: Int = rowStart)
+/** False when the user hid tile labels for a tile. */
+val LocalShowLabel = compositionLocalOf { true }
+
+/** Size of the tile being drawn, so small tiles can use tighter padding. */
+val LocalTileSize = compositionLocalOf { androidx.compose.ui.unit.DpSize.Unspecified }
 
 /**
- * 12 × 3 grid of equal columns and rows separated by [Dash.gap]. Each child must carry
- * `Modifier.layoutId(Cell(...))`. Children get exact constraints, so tiles never resize the grid.
+ * Tile body: standard padding and an uppercase label row. The fill and shape come from the
+ * board (per tile style); pass [fill] only for a tile drawn outside the board.
  */
-@Composable
-fun DashGrid(modifier: Modifier = Modifier, columns: Int = 12, rows: Int = 3, content: @Composable () -> Unit) {
-    Layout(content = content, modifier = modifier) { measurables, constraints ->
-        val gap = Dash.gap.toPx()
-        val colStep = (constraints.maxWidth - gap * (columns - 1)) / columns + gap
-        val rowStep = (constraints.maxHeight - gap * (rows - 1)) / rows + gap
-        val placed = measurables.map { m ->
-            val c = m.layoutId as Cell
-            val x0 = ((c.colStart - 1) * colStep).roundToInt()
-            val x1 = (c.colEnd * colStep - gap).roundToInt()
-            val y0 = ((c.rowStart - 1) * rowStep).roundToInt()
-            val y1 = (c.rowEnd * rowStep - gap).roundToInt()
-            Triple(m.measure(Constraints.fixed(x1 - x0, y1 - y0)), x0, y0)
-        }
-        layout(constraints.maxWidth, constraints.maxHeight) {
-            placed.forEach { (p, x, y) -> p.place(x, y) }
-        }
-    }
-}
-
-/** Flat square tile with the standard 18 × 20 dp padding and an uppercase label row. */
 @Composable
 fun Tile(
     label: String,
     modifier: Modifier = Modifier,
     meta: String? = null,
-    fill: Color = Dash.tile,
-    ink: Color = Dash.ink,
-    metaColor: Color = Dash.muted,
+    fill: Color? = null,
+    ink: Color = tc.ink,
+    metaColor: Color = tc.muted,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val size = LocalTileSize.current
+    val padH = if (size.isSpecified && size.width < 150.dp) 12.dp else Dash.tilePadH
+    val padV = if (size.isSpecified && size.height < 130.dp) 10.dp else Dash.tilePadV
     Column(
         modifier
-            .background(fill)
-            .padding(horizontal = Dash.tilePadH, vertical = Dash.tilePadV)
+            .let { if (fill != null) it.background(fill, Dash.shape) else it }
+            .padding(horizontal = padH, vertical = padV)
     ) {
-        TileHeader(label, meta, ink, metaColor)
+        if (LocalShowLabel.current) TileHeader(label, meta, ink, metaColor)
         content()
     }
 }
 
 /** Uppercase label at left, optional muted meta at right. */
 @Composable
-fun TileHeader(label: String, meta: String?, ink: Color = Dash.ink, metaColor: Color = Dash.muted) {
+fun TileHeader(label: String, meta: String?, ink: Color = tc.ink, metaColor: Color = tc.muted) {
+    // The label keeps its full width; the meta text gives way (ellipsis) on narrow tiles.
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Txt(label.uppercase(), Type.label, ink, Modifier.weight(1f))
-        if (meta != null) Txt(meta, Type.label.copy(letterSpacing = Type.meta.letterSpacing), metaColor)
+        Txt(label.uppercase(), Type.label, ink)
+        if (meta != null) {
+            Spacer(Modifier.width(10.dp))
+            Txt(meta, Type.label.copy(letterSpacing = Type.meta.letterSpacing, textAlign = TextAlign.End), metaColor, Modifier.weight(1f))
+        }
     }
 }
 
@@ -112,9 +114,53 @@ fun Txt(
     )
 }
 
+/**
+ * One line of text sized to fill the space it's given (up to [maxSize]), for clocks and big
+ * numbers in tiles of any size. [sample] sets the width budget, so "12:34" and "08:00" render at
+ * the same size and the clock doesn't jump as digits change.
+ */
+@Composable
+fun FitText(
+    text: String,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    sample: String = text,
+    maxSize: Float = 400f,
+    minSize: Float = 10f,
+    alignment: Alignment = Alignment.BottomStart,
+) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier, contentAlignment = alignment) {
+        val base = 100f
+        val size = remember(sample, style, constraints.maxWidth, constraints.maxHeight) {
+            val m = measurer.measure(
+                sample, style.copy(fontSize = base.sp, lineHeight = base.sp), maxLines = 1, softWrap = false,
+                constraints = Constraints(),
+            )
+            val wScale = if (constraints.hasBoundedWidth) constraints.maxWidth / m.size.width.toFloat() else Float.MAX_VALUE
+            val hScale = if (constraints.hasBoundedHeight) constraints.maxHeight / m.size.height.toFloat() else Float.MAX_VALUE
+            // Text size is linear in sp, so scale the probe size by the tighter of the two fits.
+            (base * minOf(wScale, hScale) * 0.97f).coerceIn(minSize, maxSize)
+        }
+        Txt(text, style.copy(fontSize = size.sp, lineHeight = (size * 0.98f).sp), color)
+    }
+}
+
 @Composable
 fun Icon(icon: ImageVector, tint: Color, size: Dp = 16.dp, modifier: Modifier = Modifier) {
     Image(icon, contentDescription = null, modifier = modifier.size(size), colorFilter = ColorFilter.tint(tint))
+}
+
+/** Shrinks slightly while pressed: the "snap" feedback on anything tappable. */
+fun Modifier.pressable(onClick: () -> Unit, scaleTo: Float = 0.96f, enabled: Boolean = true): Modifier = composed {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        if (pressed) scaleTo else 1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium), label = "press",
+    )
+    graphicsLayer { scaleX = scale; scaleY = scale }
+        .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
 }
 
 /** Outlined, uppercase top-bar button (Settings, Lock, Done). */
@@ -122,8 +168,9 @@ fun Icon(icon: ImageVector, tint: Color, size: Dp = 16.dp, modifier: Modifier = 
 fun OutlineButton(text: String, icon: ImageVector? = null, onClick: () -> Unit) {
     Row(
         Modifier
-            .border(1.dp, Dash.line)
-            .clickable(onClick = onClick)
+            .border(1.dp, Dash.line, Dash.smallShape)
+            .clip(Dash.smallShape)
+            .pressable(onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -133,7 +180,19 @@ fun OutlineButton(text: String, icon: ImageVector? = null, onClick: () -> Unit) 
     }
 }
 
-/** Round button used for the ambient/reading actions (34 dp) and media controls (40/52 dp). */
+/** Square icon-only button for bars. */
+@Composable
+fun IconButton(icon: ImageVector, tint: Color = Dash.ink, size: Dp = 36.dp, iconSize: Dp = 16.dp, outline: Boolean = true, onClick: () -> Unit) {
+    Box(
+        Modifier.size(size)
+            .let { if (outline) it.border(1.dp, Dash.line, Dash.smallShape) else it }
+            .clip(Dash.smallShape)
+            .pressable(onClick, 0.9f),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, tint, iconSize) }
+}
+
+/** Round button used for media controls and mini tiles. */
 @Composable
 fun CircleButton(
     icon: ImageVector,
@@ -151,19 +210,21 @@ fun CircleButton(
             .clip(CircleShape)
             .background(fill)
             .let { if (outline != null) it.border(1.dp, outline, CircleShape) else it }
-            .clickable(onClick = onClick),
+            .pressable(onClick, 0.88f),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, tint, iconSize) }
 }
 
-/** 64 × 34 dp toggle, as in the mockup. */
+/** 52 × 30 dp toggle with an animated knob. */
 @Composable
-fun Switch(checked: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+fun Switch(checked: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier, on: Color = Dash.accent) {
+    val x by animateDpAsState(if (checked) 25.dp else 3.dp, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium), label = "knob")
+    val track by animateColorAsState(if (checked) on else Dash.line, label = "track")
     Box(
         modifier
-            .size(64.dp, 34.dp)
-            .clip(RoundedCornerShape(17.dp))
-            .background(if (checked) Dash.slate else Dash.line)
+            .size(52.dp, 30.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(track)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -172,10 +233,10 @@ fun Switch(checked: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier
     ) {
         Box(
             Modifier
-                .offset(x = if (checked) 34.dp else 4.dp, y = 4.dp)
-                .size(26.dp)
+                .offset(x = x, y = 3.dp)
+                .size(24.dp)
                 .clip(CircleShape)
-                .background(if (checked) Dash.onSlate else Dash.muted)
+                .background(if (checked) Dash.onAccent else Dash.muted)
         )
     }
 }
@@ -194,3 +255,8 @@ fun DotGrid(color: Color = Dash.ink, modifier: Modifier = Modifier) {
 
 @Composable
 fun HSpace(w: Dp) = Spacer(Modifier.width(w))
+
+/** Thin rule in the tile's line colour. */
+@Composable
+fun Rule(modifier: Modifier = Modifier, color: Color = tc.line) =
+    Box(modifier.fillMaxWidth().height(1.dp).background(color))

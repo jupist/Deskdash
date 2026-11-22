@@ -19,6 +19,18 @@ data class DisplayConfig(
     val nightBrightness: Float = 0.02f,
     val keepAwakeCharging: Boolean = true,
     val batteryPrompted: Boolean = false,
+    /** Top bar: whole bar, and its optional parts. */
+    val topBar: Boolean = true,
+    val barBattery: Boolean = true,
+    val barSliders: Boolean = true,
+    val barLock: Boolean = true,
+    /** "auto", "landscape" or "portrait". */
+    val orientation: String = "auto",
+    /** Night screen extras. */
+    val nightAlarm: Boolean = true,
+    val nightEvent: Boolean = true,
+    val nightSeconds: Boolean = false,
+    val onboarded: Boolean = false,
 ) {
     /** True when [t] falls in the night window; the window may wrap past midnight. */
     fun isNight(t: LocalTime): Boolean {
@@ -35,6 +47,15 @@ object DisplaySettings {
     private val nightBrightness = floatPreferencesKey("night_brightness")
     private val keepAwake = booleanPreferencesKey("keep_awake_charging")
     private val batteryPrompted = booleanPreferencesKey("battery_prompted")
+    private val topBar = booleanPreferencesKey("top_bar")
+    private val barBattery = booleanPreferencesKey("bar_battery")
+    private val barSliders = booleanPreferencesKey("bar_sliders")
+    private val barLock = booleanPreferencesKey("bar_lock")
+    private val orientation = stringPreferencesKey("orientation")
+    private val nightAlarm = booleanPreferencesKey("night_alarm")
+    private val nightEvent = booleanPreferencesKey("night_event")
+    private val nightSeconds = booleanPreferencesKey("night_seconds")
+    private val onboarded = booleanPreferencesKey("onboarded")
 
     fun config(context: Context): Flow<DisplayConfig> = context.prefs.data.map { p ->
         val d = DisplayConfig()
@@ -45,6 +66,16 @@ object DisplaySettings {
             nightBrightness = p[nightBrightness] ?: d.nightBrightness,
             keepAwakeCharging = p[keepAwake] ?: d.keepAwakeCharging,
             batteryPrompted = p[batteryPrompted] ?: false,
+            topBar = p[topBar] ?: true,
+            barBattery = p[barBattery] ?: true,
+            barSliders = p[barSliders] ?: true,
+            barLock = p[barLock] ?: true,
+            orientation = p[orientation] ?: "auto",
+            nightAlarm = p[nightAlarm] ?: true,
+            nightEvent = p[nightEvent] ?: true,
+            nightSeconds = p[nightSeconds] ?: false,
+            // Installs from before onboarding existed count as set up (they have a weather place).
+            onboarded = p[onboarded] ?: (p[Keys.weatherCity] != null),
         )
     }.distinctUntilChanged()
 
@@ -60,4 +91,13 @@ object DisplaySettings {
     suspend fun setNightBrightness(c: Context, v: Float) = put(c, nightBrightness, v.coerceIn(0.01f, 1f))
     suspend fun setKeepAwake(c: Context, v: Boolean) = put(c, keepAwake, v)
     suspend fun setBatteryPrompted(c: Context) = put(c, batteryPrompted, true)
+    suspend fun setTopBar(c: Context, v: Boolean) = put(c, topBar, v)
+    suspend fun setBarBattery(c: Context, v: Boolean) = put(c, barBattery, v)
+    suspend fun setBarSliders(c: Context, v: Boolean) = put(c, barSliders, v)
+    suspend fun setBarLock(c: Context, v: Boolean) = put(c, barLock, v)
+    suspend fun setOrientation(c: Context, v: String) = put(c, orientation, v)
+    suspend fun setNightAlarm(c: Context, v: Boolean) = put(c, nightAlarm, v)
+    suspend fun setNightEvent(c: Context, v: Boolean) = put(c, nightEvent, v)
+    suspend fun setNightSeconds(c: Context, v: Boolean) = put(c, nightSeconds, v)
+    suspend fun setOnboarded(c: Context) = put(c, onboarded, true)
 }

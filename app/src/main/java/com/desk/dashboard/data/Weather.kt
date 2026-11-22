@@ -35,6 +35,9 @@ data class Forecast(val current: Current, val daily: Daily) {
     data class Current(
         @SerialName("temperature_2m") val temp: Double,
         @SerialName("weather_code") val code: Int,
+        @SerialName("apparent_temperature") val feels: Double? = null,
+        @SerialName("relative_humidity_2m") val humidity: Double? = null,
+        @SerialName("wind_speed_10m") val wind: Double? = null,
     )
 
     @Serializable
@@ -43,6 +46,7 @@ data class Forecast(val current: Current, val daily: Daily) {
         @SerialName("temperature_2m_max") val max: List<Double>,
         @SerialName("temperature_2m_min") val min: List<Double>,
         @SerialName("weather_code") val code: List<Int>,
+        @SerialName("precipitation_probability_max") val rain: List<Int?> = emptyList(),
     ) {
         val dates: List<LocalDate> get() = time.map(LocalDate::parse)
     }
@@ -60,6 +64,20 @@ data class Place(
 }
 
 /** WMO weather interpretation codes → one short word. */
+/** The icon group for a WMO weather code. */
+enum class Sky { CLEAR, PARTLY, CLOUD, FOG, RAIN, SNOW, STORM }
+
+fun skyOf(code: Int): Sky = when (code) {
+    0, 1 -> Sky.CLEAR
+    2 -> Sky.PARTLY
+    3 -> Sky.CLOUD
+    45, 48 -> Sky.FOG
+    71, 73, 75, 77, 85, 86 -> Sky.SNOW
+    95, 96, 99 -> Sky.STORM
+    51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82 -> Sky.RAIN
+    else -> Sky.CLOUD
+}
+
 fun conditionWord(code: Int): String = when (code) {
     0 -> "Clear"
     1 -> "Mostly clear"
@@ -154,11 +172,12 @@ class WeatherRepo private constructor(private val context: Context) {
         val url = "https://api.open-meteo.com/v1/forecast".toHttpUrl().newBuilder()
             .addQueryParameter("latitude", lat.toString())
             .addQueryParameter("longitude", lon.toString())
-            .addQueryParameter("current", "temperature_2m,weather_code")
-            .addQueryParameter("daily", "temperature_2m_max,temperature_2m_min,weather_code")
+            .addQueryParameter("current", "temperature_2m,weather_code,apparent_temperature,relative_humidity_2m,wind_speed_10m")
+            .addQueryParameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max")
             .addQueryParameter("timezone", "auto")
-            .addQueryParameter("forecast_days", "5")
+            .addQueryParameter("forecast_days", "7")
             .addQueryParameter("temperature_unit", unit)
+            .addQueryParameter("wind_speed_unit", if (unit == "fahrenheit") "mph" else "kmh")
             .build()
         http.newCall(Request.Builder().url(url).build()).execute().use { r ->
             return if (r.isSuccessful) r.body!!.string() else null

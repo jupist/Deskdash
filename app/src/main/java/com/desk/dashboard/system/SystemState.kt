@@ -86,3 +86,20 @@ fun rememberBattery(): State<Battery?> {
     }
     return state
 }
+
+/** Current time to the second, ticking on each second boundary while in composition. */
+@Composable
+fun rememberSecond(): State<LocalDateTime> {
+    val state = remember { mutableStateOf(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000 - now % 1000 + 5)
+            state.value = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
+        }
+    }
+    return state
+}
+
+/** True if the user's system clock is set to 24-hour time. */
+fun is24h(context: Context) = android.text.format.DateFormat.is24HourFormat(context)

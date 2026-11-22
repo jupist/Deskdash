@@ -87,29 +87,32 @@ fun FlatSlider(
                 .padding(horizontal = reach),
             contentAlignment = Alignment.CenterStart,
         ) {
-            Box(Modifier.fillMaxWidth().height(3.dp).background(Dash.line))
-            Box(Modifier.fillMaxWidth(value.coerceIn(0f, 1f)).height(3.dp).background(Dash.slate))
+            Box(Modifier.fillMaxWidth().height(3.dp).background(tc.line))
+            Box(Modifier.fillMaxWidth(value.coerceIn(0f, 1f)).height(3.dp).background(tc.accentFill))
             Box(
                 Modifier.offset(x = (trackW - thumb) * value.coerceIn(0f, 1f))
-                    .size(thumb).clip(CircleShape).background(Dash.ink)
+                    .size(thumb).clip(CircleShape).background(tc.ink)
             )
         }
     }
 }
 
 @Composable
-private fun LabeledSlider(label: String, value: Float, onChange: (Float) -> Unit, onRelease: () -> Unit = {}) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Txt(label.uppercase(), Type.small.copy(letterSpacing = Type.label.letterSpacing), Dash.muted)
+private fun LabeledSlider(
+    label: String, value: Float, onChange: (Float) -> Unit, onRelease: () -> Unit = {},
+    modifier: Modifier = Modifier, fill: Boolean = false,
+) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Txt(label.uppercase(), Type.small.copy(letterSpacing = Type.label.letterSpacing), tc.muted, if (fill) Modifier.width(44.dp) else Modifier)
         // 150 dp track plus 12 dp of extra touch area at each end.
-        FlatSlider(value, onChange, Modifier.width(174.dp), onRelease = onRelease)
-        Txt("${(value * 100).roundToInt()}", Type.display16.copy(textAlign = TextAlign.End), Dash.ink, Modifier.width(30.dp))
+        FlatSlider(value, onChange, if (fill) Modifier.weight(1f) else Modifier.width(174.dp), onRelease = onRelease)
+        Txt("${(value * 100).roundToInt()}", Type.display16.copy(textAlign = TextAlign.End), tc.ink, Modifier.width(30.dp))
     }
 }
 
 /** Volume (STREAM_MUSIC) slider; follows hardware volume key changes too. */
 @Composable
-fun VolumeSlider() {
+fun VolumeSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
     val context = LocalContext.current
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     val max = remember { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).toFloat() }
@@ -117,7 +120,7 @@ fun VolumeSlider() {
     val filter = remember { IntentFilter("android.media.VOLUME_CHANGED_ACTION") }
     SystemBroadcast(filter) { v = audio.getStreamVolume(AudioManager.STREAM_MUSIC) / max }
 
-    LabeledSlider("Vol", v, onChange = {
+    LabeledSlider("Vol", v, modifier = modifier, fill = fill, onChange = {
         v = it
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, (it * max).roundToInt(), 0)
     })
@@ -129,14 +132,14 @@ fun VolumeSlider() {
  * opens that permission screen.
  */
 @Composable
-fun BrightnessSlider() {
+fun BrightnessSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
     val context = LocalContext.current
     val activity = context as Activity
     var v by remember { mutableFloatStateOf(readBrightness(context)) }
     var asked by remember { mutableStateOf(false) } // sent the user to the permission screen already
 
     LabeledSlider(
-        "Light", v,
+        "Light", v, modifier = modifier, fill = fill,
         onChange = {
             v = it
             val lp = activity.window.attributes
