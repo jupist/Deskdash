@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
@@ -73,19 +74,20 @@ class MediaRepo private constructor(private val context: Context) {
             .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list -> pick(list.orEmpty()) }
+    private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list -> watch(list.orEmpty()) }
 
-    private val callback = object : MediaController.Callback() {
-        override fun onMetadataChanged(metadata: MediaMetadata?) = publish()
-        override fun onPlaybackStateChanged(state: PlaybackState?) {
-            publish()
-            // Another app may have started playing; re-evaluate which session to show.
-            if (state?.state == PlaybackState.STATE_PLAYING || state?.state == PlaybackState.STATE_STOPPED) {
-                runCatching { pick(sessions.getActiveSessions(component)) }
-            }
-        }
+    /** Every active session, each with [watcher] attached. */
+    private var watched: List<MediaController> = emptyList()
+
+    /**
+     * Attached to every session, not just the one shown: a session often appears before it has
+     * any track info (Spotify waking up, say), and only its own callbacks say when that arrives.
+     */
+    private val watcher = object : MediaController.Callback() {
+        override fun onMetadataChanged(metadata: MediaMetadata?) = pick(watched)
+        override fun onPlaybackStateChanged(state: PlaybackState?) = pick(watched)
         override fun onSessionDestroyed() {
-            runCatching { pick(sessions.getActiveSessions(component)) }.onFailure { setController(null) }
+            runCatching { watch(sessions.getActiveSessions(component)) }.onFailure { watch(emptyList()) }
         }
     }
 
@@ -95,7 +97,7 @@ class MediaRepo private constructor(private val context: Context) {
         if (!hasAccess()) return
         runCatching {
             sessions.addOnActiveSessionsChangedListener(sessionsListener, component, main)
-            pick(sessions.getActiveSessions(component))
+            watch(sessions.getActiveSessions(component))
         }
     }
 
@@ -103,20 +105,21 @@ class MediaRepo private constructor(private val context: Context) {
         if (--users > 0) return
         users = 0
         runCatching { sessions.removeOnActiveSessionsChangedListener(sessionsListener) }
-        setController(null)
+        watch(emptyList())
     }
 
+    private fun watch(list: List<MediaController>) {
+        watched.forEach { it.unregisterCallback(watcher) }
+        watched = list
+        list.forEach { it.registerCallback(watcher, main) }
+        pick(list)
+    }
+
+    /** Spotify (if it has a track), else whatever is playing, else anything with a track. */
     private fun pick(list: List<MediaController>) {
-        val best = list.firstOrNull { it.packageName == SPOTIFY && it.metadata != null }
-            ?: list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        controller = list.firstOrNull { it.packageName == SPOTIFY && it.metadata != null }
+            ?: list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING && it.metadata != null }
             ?: list.firstOrNull { it.metadata != null }
-        if (best?.sessionToken != controller?.sessionToken) setController(best) else publish()
-    }
-
-    private fun setController(c: MediaController?) {
-        controller?.unregisterCallback(callback)
-        controller = c
-        c?.registerCallback(callback, main)
         publish()
     }
 
@@ -191,14 +194,26 @@ class MediaRepo private constructor(private val context: Context) {
     }
 
     /** Waits for a Spotify session to show up; presses play on it if it arrives paused. */
-    private suspend fun awaitSpotifyPlaying(timeoutMs: Long = 6000): Boolean {
-        val np = withTimeoutOrNull(timeoutMs) { state.first { it?.pkg == SPOTIFY } } ?: return false
-        if (!np.playing) {
-            controller?.transportControls?.play()
-            withTimeoutOrNull(3000) { state.first { it?.pkg == SPOTIFY && it.playing } }
+    /**
+     * Waits for Spotify's own session to report playing (checked directly, not via the tile's
+     * state). If it shows up paused, nudges it with play once.
+     */
+    private suspend fun awaitSpotifyPlaying(timeoutMs: Long = 8000): Boolean = withTimeoutOrNull(timeoutMs) {
+        val started = SystemClock.elapsedRealtime()
+        var nudged = false
+        while (true) {
+            val c = runCatching { sessions.getActiveSessions(component) }.getOrNull()
+                ?.firstOrNull { it.packageName == SPOTIFY }
+            val s = c?.playbackState?.state
+            if (s == PlaybackState.STATE_PLAYING || s == PlaybackState.STATE_BUFFERING) return@withTimeoutOrNull true
+            if (c != null && !nudged && SystemClock.elapsedRealtime() - started > 1500) {
+                c.transportControls.play()
+                nudged = true
+            }
+            delay(150)
         }
-        return true
-    }
+        @Suppress("UNREACHABLE_CODE") false
+    } ?: false
 
     /** Connects to Spotify's MediaBrowserService (Android Auto's route) and plays. */
     private suspend fun playViaBrowser(): Boolean {

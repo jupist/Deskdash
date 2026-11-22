@@ -63,6 +63,7 @@ fun MusicTile(modifier: Modifier = Modifier) {
     val np by repo.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var resuming by remember { mutableStateOf(false) }
+    var resumeFailed by remember { mutableStateOf(false) }
     val playing = np
 
     Tile("Now playing", modifier, meta = playing?.let { sourceName(context, it.pkg) } ?: "Spotify") {
@@ -77,15 +78,23 @@ fun MusicTile(modifier: Modifier = Modifier) {
             playing == null -> {
                 Spacer(Modifier.weight(1f))
                 Txt("Nothing playing", Type.display16, Dash.ink)
-                Txt(if (resuming) "Waking Spotify…" else "Resume plays your last Spotify track", Type.bodySmall, Dash.muted)
+                Txt(
+                    when {
+                        resuming -> "Waking Spotify…"
+                        resumeFailed -> "Spotify didn't respond. Try Open Spotify"
+                        else -> "Resume plays your last Spotify track"
+                    },
+                    Type.bodySmall, Dash.muted,
+                )
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     MiniButton("Resume Spotify", Dash.ink, Dash.slate) {
                         if (resuming) return@MiniButton
                         resuming = true
+                        resumeFailed = false
                         scope.launch {
-                            // Plays in the background; only opens the app if Spotify can't be woken.
-                            if (!repo.resumeSpotify()) openSpotify(context)
+                            // Plays in the background; never opens the app.
+                            resumeFailed = !repo.resumeSpotify()
                             resuming = false
                         }
                     }
