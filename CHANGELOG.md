@@ -14,6 +14,7 @@
 - Google events are kept offline between restarts.
 - Runs on Android 8.0 and newer (was Android 11).
 - Weather detail shows wind units, and its forecast columns line up.
+- Layouts carried to another screen size (a phone in landscape, say) keep their arrangement with no gaps, and the top bar fits narrower screens.
 
 ## 1.0.0
 

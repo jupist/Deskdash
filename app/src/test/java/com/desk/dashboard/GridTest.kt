@@ -91,4 +91,27 @@ class GridTest {
         val full = listOf(t("s", 0, 0, 1, 1), t("w", 1, 0, 2, 1), t("x", 0, 1, 1, 1), t("y", 1, 1, 2, 1))
         assertNull(Grid.movePush(full, full[0], 1, 0, 3, 2))
     }
+
+    @Test fun adaptScalesGridLinesWithoutGaps() {
+        // A full 12 × 6 board onto a phone in landscape (11 × 4): still full, same arrangement.
+        val from = GridLayout(12, 6, listOf(
+            t("clock", 0, 0, 4, 2), t("music", 0, 2, 4, 4), t("agenda", 4, 0, 5, 3),
+            t("countdown", 4, 3, 5, 3), t("weather", 9, 0, 3, 3), t("list", 9, 3, 3, 3),
+        ))
+        val (to, dropped) = Grid.adapt(from, 11, 4, min)
+        assertTrue(dropped.isEmpty())
+        for (x in to.tiles) assertTrue(Grid.fits(x, to.tiles, 11, 4))
+        assertEquals(44, to.tiles.sumOf { it.w * it.h })
+        val byId = to.tiles.associateBy { it.id }
+        assertEquals(byId.getValue("clock").y + byId.getValue("clock").h, byId.getValue("music").y)
+        assertEquals(byId.getValue("agenda").x + byId.getValue("agenda").w, byId.getValue("weather").x)
+    }
+
+    @Test fun mapLinesKeepsMinimumsOrGivesUp() {
+        // Three 1-wide spans in a row can't squeeze onto 2 lines.
+        assertNull(Grid.mapLines(6, 2, listOf(Triple(0, 2, 1), Triple(2, 4, 1), Triple(4, 6, 1))))
+        val f = Grid.mapLines(6, 4, listOf(Triple(0, 2, 1), Triple(2, 4, 1), Triple(4, 5, 1), Triple(5, 6, 1)))!!
+        assertEquals(listOf(0, 4), listOf(f[0], f[6]))
+        assertTrue(f[2] < f[4] && f[4] < f[5])
+    }
 }

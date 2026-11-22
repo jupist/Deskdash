@@ -121,12 +121,14 @@ object Grid {
     }
 
     /**
-     * Fits [from] onto a [cols]×[rows] grid: scales each tile, then packs them in reading order,
+     * Fits [from] onto a [cols]×[rows] grid. Scales the grid lines when every tile can keep its
+     * minimum size that way; otherwise scales each tile, then packs them in reading order,
      * each as close to its scaled spot as it can go, shrinking towards its minimum size when
      * needed. Tiles that can't fit at all are dropped (and returned separately).
      */
     fun adapt(from: GridLayout, cols: Int, rows: Int, minSize: (String) -> Size): Pair<GridLayout, List<TileSpec>> {
         if (from.cols == cols && from.rows == rows) return from to emptyList()
+        scaleLines(from, cols, rows, minSize)?.let { return it to emptyList() }
         val sx = cols.toFloat() / from.cols
         val sy = rows.toFloat() / from.rows
         val placed = mutableListOf<TileSpec>()
@@ -142,6 +144,42 @@ object Grid {
             if (spot != null) placed += spot else dropped += t
         }
         return GridLayout(cols, rows, placed) to dropped
+    }
+
+    /**
+     * Scales the grid lines rather than each tile, so tiles that touched still touch and the
+     * layout keeps its shape with no gaps. Null if some tile would end up below its minimum size.
+     */
+    private fun scaleLines(from: GridLayout, cols: Int, rows: Int, minSize: (String) -> Size): GridLayout? {
+        val ts = from.tiles.filter { inBounds(it, from.cols, from.rows) }
+        if (ts.size != from.tiles.size) return null
+        val xs = mapLines(from.cols, cols, ts.map { Triple(it.x, it.x + it.w, minSize(it.type).w) }) ?: return null
+        val ys = mapLines(from.rows, rows, ts.map { Triple(it.y, it.y + it.h, minSize(it.type).h) }) ?: return null
+        return GridLayout(cols, rows, ts.map {
+            it.copy(x = xs[it.x], y = ys[it.y], w = xs[it.x + it.w] - xs[it.x], h = ys[it.y + it.h] - ys[it.y])
+        })
+    }
+
+    /**
+     * Maps lines 0..[from] onto 0..[to], in order and as close to proportional as it can, while
+     * every span (start, end, minimum) stays at least its minimum wide. Null if that's impossible.
+     */
+    internal fun mapLines(from: Int, to: Int, spans: List<Triple<Int, Int, Int>>): IntArray? {
+        val mins = spans.map { it.copy(third = max(1, it.third)) }
+        // need[b]: cells the spans from line b onwards require before the far edge.
+        val need = IntArray(from + 1)
+        for (b in from - 1 downTo 0) {
+            need[b] = max(need[b + 1], mins.filter { it.first == b }.maxOfOrNull { it.third + need[it.second] } ?: 0)
+        }
+        if (need[0] > to) return null
+        val f = IntArray(from + 1)
+        for (b in 1..from) {
+            val lo = max(f[b - 1], mins.filter { it.second == b }.maxOfOrNull { f[it.first] + it.third } ?: 0)
+            val hi = to - need[b]
+            if (lo > hi) return null
+            f[b] = (b * to.toFloat() / from).roundToInt().coerceIn(lo, hi)
+        }
+        return f
     }
 
     /** [t] at its own spot if free, else the nearest free spot at its size, then smaller sizes. */

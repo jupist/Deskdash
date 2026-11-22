@@ -199,6 +199,8 @@ private fun putBack(context: android.content.Context, tiles: List<TileSpec>, und
 private fun TopBar(display: DisplayConfig, actions: DashActions) {
     BoxWithConstraints(Modifier.fillMaxWidth().height(Dash.topBar)) {
         val roomy = maxWidth > 760.dp
+        // Phones in landscape: shorter slider tracks, so the bar keeps space around them.
+        val narrow = maxWidth < 940.dp
         Row(Modifier.fillMaxSize().padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             // Dot icon: the list of installed apps (how to reach other apps in home-app mode).
             Box(Modifier.clip(Dash.smallShape).pressable(actions.openApps).padding(horizontal = 8.dp, vertical = 12.dp)) { DotGrid() }
@@ -210,9 +212,9 @@ private fun TopBar(display: DisplayConfig, actions: DashActions) {
             }
             Spacer(Modifier.weight(1f))
             if (display.barSliders && roomy) {
-                VolumeSlider()
+                VolumeSlider(if (narrow) Modifier.width(190.dp) else Modifier, fill = narrow)
                 HSpace(16.dp)
-                BrightnessSlider()
+                BrightnessSlider(if (narrow) Modifier.width(190.dp) else Modifier, fill = narrow)
                 Spacer(Modifier.weight(1f))
             }
             IconButton(DashIcons.grid, onClick = actions.editLayout)
