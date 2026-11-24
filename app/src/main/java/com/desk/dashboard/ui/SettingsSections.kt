@@ -417,6 +417,20 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                 scope.launch { Alarms.setEnabled(context, on) }
             })
         }
+        // Without full-screen alerts the alarm still rings, but can't show over the lock screen.
+        var fullScreen by remember { mutableStateOf(com.desk.dashboard.system.canFullScreen(context)) }
+        androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+            fullScreen = com.desk.dashboard.system.canFullScreen(context)
+            onPauseOrDispose {}
+        }
+        if (c.enabled && !fullScreen && !context.isRemote) {
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Txt("Allow full-screen alerts so the alarm shows over the lock screen", Type.meta, Dash.muted, Modifier.weight(1f), maxLines = 2)
+                HSpace(12.dp)
+                MiniButton("Allow", Dash.ink, Dash.accent) { com.desk.dashboard.system.Device.open(context, com.desk.dashboard.system.fullScreenSettings(context)) }
+            }
+        }
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Field("Time", Modifier.weight(1f)) {

@@ -1,6 +1,5 @@
 package com.desk.dashboard.ui
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -38,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -96,10 +96,19 @@ fun DashboardScreen(
                 edit -> EditBar(
                     presetName = preset.name,
                     hidden = hidden,
-                    onPutBack = { putBack(context, hidden, undo) },
+                    onPutBack = { putBack(hidden, undo) },
+                    canPutBack = CurrentGrid.value.let { l ->
+                        l != null && hidden.any { t -> Modules.minSize(t.type).let { s -> Grid.firstFree(l.tiles, s.w, s.h, l.cols, l.rows) != null } }
+                    },
                     canUndo = undo.isNotEmpty(),
                     onUndo = { undo.removeLastOrNull()?.let { BoardStore.saveLayout(it) } },
-                    onAdd = { overlay { ModulePicker(onClose = { overlay(null) }) { m -> overlay(null); addTile(context, m, undo) } } },
+                    onAdd = {
+                        overlay {
+                            ModulePicker(onClose = { overlay(null) }, fits = { m -> CurrentGrid.value?.let { withNewTile(it, m) } != null }) { m ->
+                                overlay(null); addTile(m, undo)
+                            }
+                        }
+                    },
                     onDone = { onEditing(false) },
                 )
                 bar -> TopBar(display, actions)
@@ -155,13 +164,9 @@ private fun updateTile(id: String, block: (TileSpec) -> TileSpec) {
     BoardStore.updateTileEverywhere(id, block)
 }
 
-private fun addTile(context: android.content.Context, m: Module, undo: MutableList<GridLayout>) {
+private fun addTile(m: Module, undo: MutableList<GridLayout>) {
     val layout = CurrentGrid.value ?: return
-    val placed = withNewTile(layout, m)
-    if (placed == null) {
-        Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", Toast.LENGTH_LONG).show()
-        return
-    }
+    val placed = withNewTile(layout, m) ?: return // the picker only offers tiles that fit
     undo += layout
     BoardStore.saveLayout(placed)
 }
@@ -192,23 +197,22 @@ internal fun withNewTile(layout: GridLayout, m: Module): GridLayout? {
 }
 
 /** Places tiles that didn't fit this screen: at their size if possible, else their minimum. */
-private fun putBack(context: android.content.Context, tiles: List<TileSpec>, undo: MutableList<GridLayout>) {
+private fun putBack(tiles: List<TileSpec>, undo: MutableList<GridLayout>) {
     val layout = CurrentGrid.value ?: return
     val placed = layout.tiles.toMutableList()
-    var missed = 0
     for (t in tiles) {
         val min = Modules.minSize(t.type)
         val spot = listOf(t.w.coerceAtMost(layout.cols) to t.h.coerceAtMost(layout.rows), min.w to min.h).firstNotNullOfOrNull { (w, h) ->
             Grid.firstFree(placed, w, h, layout.cols, layout.rows)?.let { Triple(it.first, it.second, w to h) }
         }
-        if (spot == null) { missed++; continue }
+        if (spot == null) continue
         placed += t.copy(x = spot.first, y = spot.second, w = spot.third.first, h = spot.third.second)
     }
     if (placed.size > layout.tiles.size) {
         undo += layout
         BoardStore.saveLayout(layout.copy(tiles = placed))
     }
-    if (missed > 0) Toast.makeText(context, "$missed didn't fit: shrink or remove a tile, then try again", Toast.LENGTH_LONG).show()
+    // Any that still didn't fit stay listed in the edit bar.
 }
 
 @Composable
@@ -263,6 +267,8 @@ private fun BatteryStat() {
 @Composable
 internal fun EditBar(
     presetName: String, hidden: List<TileSpec>, onPutBack: () -> Unit, canUndo: Boolean, onUndo: () -> Unit, onAdd: () -> Unit, onDone: () -> Unit,
+    /** Whether any of [hidden] would fit now; if not, the bar says to make room instead of offering Put back. */
+    canPutBack: Boolean = true,
     /** Replaces this device's preset menu (a phone editing a tablet lists the tablet's presets). */
     presetMenu: (@Composable (onDismiss: () -> Unit) -> Unit)? = null,
 ) {
@@ -279,7 +285,8 @@ internal fun EditBar(
                         HSpace(12.dp)
                         Txt("Didn't fit: ${hidden.mapNotNull { Modules.get(it.type)?.name }.joinToString()}", Type.meta, Dash.muted, Modifier.weight(1f, fill = false))
                         HSpace(8.dp)
-                        MiniButton("Put back", Dash.ink, Dash.accent, onPutBack)
+                        if (canPutBack) MiniButton("Put back", Dash.ink, Dash.accent, onPutBack)
+                        else Txt("Make room to put back", Type.meta, Dash.muted)
                     }
                 }
                 if (menu && presetMenu != null) presetMenu { menu = false }
@@ -347,16 +354,23 @@ private fun RenameDialog(initial: String, onSave: (String) -> Unit, onClose: () 
 
 /** Grid of every module: tap one to add it to the first free space. */
 @Composable
-internal fun ModulePicker(onClose: () -> Unit, onPick: (Module) -> Unit) {
+internal fun ModulePicker(onClose: () -> Unit, fits: (Module) -> Boolean = { true }, onPick: (Module) -> Unit) {
+    val fitting = remember { Modules.all.associateWith(fits) }
     Overlay(onDismiss = onClose, width = 720.dp) {
         PanelHeader("Add a tile", onClose)
+        val full = fitting.values.none { it }
+        if (full) {
+            Txt("The dashboard is full. Shrink or remove a tile to make room.", Type.meta, Dash.muted, Modifier.padding(bottom = 12.dp), maxLines = 2)
+        }
         LazyVerticalGrid(
             GridCells.Adaptive(200.dp), Modifier.fillMaxWidth().heightIn(max = 460.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(Modules.all, key = { it.type }) { m ->
+                val fit = fitting[m] != false
                 Column(
-                    Modifier.clip(Dash.shape).border(1.dp, Dash.line, Dash.shape).pressable({ onPick(m) }).padding(14.dp).heightIn(min = 96.dp),
+                    Modifier.clip(Dash.shape).border(1.dp, Dash.line, Dash.shape).pressable({ onPick(m) }, enabled = fit)
+                        .alpha(if (fit) 1f else 0.45f).padding(14.dp).heightIn(min = 96.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(32.dp).clip(Dash.smallShape).background(Dash.accent), contentAlignment = Alignment.Center) {
@@ -366,7 +380,11 @@ internal fun ModulePicker(onClose: () -> Unit, onPick: (Module) -> Unit) {
                         Txt(m.name, Type.body, Dash.ink, Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(8.dp))
-                    Txt(m.description, Type.meta, Dash.muted, maxLines = 3)
+                    Txt(
+                        // When nothing fits the note above says so; otherwise say what this one needs.
+                        if (fit || full) m.description else "Needs a free ${m.minSize.w} × ${m.minSize.h} space",
+                        Type.meta, Dash.muted, maxLines = 3,
+                    )
                 }
             }
         }

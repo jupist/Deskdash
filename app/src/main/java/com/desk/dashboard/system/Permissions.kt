@@ -1,7 +1,6 @@
 package com.desk.dashboard.system
 
 import android.Manifest
-import android.widget.Toast
 import android.content.Context
 import android.app.NotificationManager
 import android.app.Activity
@@ -57,21 +56,15 @@ fun rememberRuntimePermission(permission: String): PermissionState {
 }
 
 /**
- * Notifications (for the ringing notification) and full-screen intents (alarm over the lock
- * screen). Asks for the first; sends the user to the system page for the second.
+ * Notifications, for the ringing notification: asks if needed. Full-screen alerts (the alarm over
+ * the lock screen) are offered in the alarm's settings instead, rather than jumping to a system page.
  */
 fun ensureAlarmPermissions(context: Context, requestNotifications: () -> Unit) {
-    if (!hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)) {
-        requestNotifications()
-        return
-    }
-    if (!canFullScreen(context)) {
-        Toast.makeText(context, "Allow full-screen alerts so the alarm can show over the lock screen", Toast.LENGTH_LONG).show()
-        context.startActivity(
-            Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}"))
-        )
-    }
+    if (!hasPermission(context, Manifest.permission.POST_NOTIFICATIONS)) requestNotifications()
 }
+
+/** The system page where full-screen alerts are allowed. */
+fun fullScreenSettings(context: Context) = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}"))
 
 /** Full-screen alerts (alarm over the lock screen) need a grant only from Android 14. */
 fun canFullScreen(context: Context): Boolean =

@@ -7,7 +7,6 @@ import android.content.IntentFilter
 import android.media.AudioManager
 import android.net.Uri
 import android.provider.Settings
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -137,7 +136,6 @@ fun BrightnessSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
     val context = LocalContext.current
     val activity = context as? Activity // null in the screensaver, which has no window of ours to dim
     var v by remember { mutableFloatStateOf(readBrightness(context)) }
-    var asked by remember { mutableStateOf(false) } // sent the user to the permission screen already
 
     LabeledSlider(
         DashIcons.sun, v, modifier = modifier, fill = fill,
@@ -149,15 +147,6 @@ fun BrightnessSlider(modifier: Modifier = Modifier, fill: Boolean = false) {
                 w.attributes = lp
             }
             if (Settings.System.canWrite(context)) writeBrightness(context, it)
-        },
-        onRelease = {
-            if (!Settings.System.canWrite(context) && !asked) {
-                asked = true
-                Toast.makeText(context, "Allow “Modify system settings” so brightness sticks outside the app", Toast.LENGTH_LONG).show()
-                context.startActivity(
-                    Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}"))
-                )
-            }
         },
     )
 }

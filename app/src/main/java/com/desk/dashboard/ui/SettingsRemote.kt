@@ -392,11 +392,9 @@ private fun RemoteDashboard(
             onUndo = { undo.removeLastOrNull()?.let { session.setLayout(it) } },
             onAdd = {
                 showSheet {
-                    ModulePicker(onClose = { showSheet(null) }) { m ->
+                    ModulePicker(onClose = { showSheet(null) }, fits = { m -> withNewTile(b.layout, m) != null }) { m ->
                         showSheet(null)
-                        val placed = withNewTile(b.layout, m)
-                        if (placed != null) change(placed)
-                        else android.widget.Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", android.widget.Toast.LENGTH_LONG).show()
+                        withNewTile(b.layout, m)?.let(::change)
                     }
                 }
             },

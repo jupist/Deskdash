@@ -45,12 +45,16 @@ object Device {
         return info.exported && context.checkSelfPermission(perm) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** startActivity that shows a toast instead of crashing if the page can't be opened. */
+    /** Opens a system page; if this device doesn't have it, opens the app's own system page instead. */
     fun open(context: Context, intent: Intent) {
         try {
             context.startActivity(intent)
         } catch (e: RuntimeException) { // ActivityNotFoundException, SecurityException
-            android.widget.Toast.makeText(context, "Couldn't open that settings page", android.widget.Toast.LENGTH_SHORT).show()
+            runCatching {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${context.packageName}"))
+                )
+            }
         }
     }
 }
