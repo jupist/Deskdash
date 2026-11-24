@@ -29,19 +29,14 @@ object RemoteMode {
         _target.value = sp(c).getString("controlling", null)?.split('\t')?.takeIf { it.size == 2 }
             ?.let { Target(it[0].ifEmpty { null }, it[1]) }
         _primary.value = sp(c).getBoolean("primary", false)
-        // As a dedicated remote: straight to the only tablet, or a choice when there are several.
-        if (_primary.value) openDefault(c)
-    }
-
-    private fun openDefault(c: Context) {
-        val paired = Pairings.all(c)
-        _target.value = paired.singleOrNull()?.let { Target(it.id, it.name) }
+        // As a dedicated remote: start on the list of tablets; it opens the only one once it's online.
+        if (_primary.value) _target.value = null
     }
 
     fun setPrimary(c: Context, on: Boolean) {
         sp(c).edit().putBoolean("primary", on).apply()
         _primary.value = on
-        if (on) openDefault(c) else stop(c)
+        if (on) _target.value = null else stop(c)
     }
 
     /** Back to the list of tablets (as a dedicated remote), or out of remote control. */

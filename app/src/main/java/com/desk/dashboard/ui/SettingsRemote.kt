@@ -173,6 +173,8 @@ fun RemoteShell(target: RemoteMode.Target, primary: Boolean) {
         }
         val found by discovery.found.collectAsStateWithLifecycle()
         LaunchedEffect(found) { found.firstOrNull { RemoteMode.matches(target, it) }?.let { RemoteMode.lastSeen = it; tablet = it } }
+        // A dedicated remote goes back to its list of tablets (marked offline) rather than waiting here.
+        if (primary) LaunchedEffect(Unit) { kotlinx.coroutines.delay(5_000); RemoteMode.leave(context) }
         Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap)) {
             ShellBar(target.name, "Looking for it on this Wi-Fi…", onSettings = null, primary)
             Spacer(Modifier.height(Dash.gap))
@@ -287,6 +289,10 @@ fun RemotePicker() {
     }
     val found by discovery.found.collectAsStateWithLifecycle()
     val paired = remember { Pairings.all(context) }
+    // With just one tablet, open it as soon as it's online; until then this list shows it offline.
+    LaunchedEffect(found) {
+        paired.singleOrNull()?.let { p -> found.firstOrNull { it.id == p.id }?.let { RemoteMode.start(context, it) } }
+    }
     val others = found.filter { f -> paired.none { it.id == f.id } && f.id != RemoteHost.fingerprint.let(Protocol::hostId).takeIf { RemoteHost.enabled.value } }
     Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
         Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -297,7 +303,7 @@ fun RemotePicker() {
             paired.forEachIndexed { i, p ->
                 if (i > 0) RowDivider()
                 val here = found.firstOrNull { it.id == p.id }
-                NavRow(p.name, if (here != null) "On this Wi-Fi" else "Not found yet", icon = DashIcons.phone) {
+                NavRow(p.name, if (here != null) "Online" else "Offline", icon = DashIcons.phone) {
                     if (here != null) RemoteMode.start(context, here) else RemoteMode.open(context, p)
                 }
             }
