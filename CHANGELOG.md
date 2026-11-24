@@ -2,6 +2,7 @@
 
 ## 1.1.0
 
+- **Phone control:** edit the tablet's layout and switch presets from a phone running Deskdash on the same Wi-Fi. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Phone control). Off until you turn it on.
 - **Screensaver:** Deskdash can be Android's screensaver: the dashboard, view-only, while charging (Settings › Display & power).
 - **Backup:** export and import presets, layouts, settings, the alarm, countdowns and iCal links as one file (Settings › Backup).
 - **Music app choice:** Now playing asks which app it resumes (Spotify, YouTube Music, any player…) instead of assuming Spotify.

@@ -53,6 +53,7 @@ class DeskApp : Application() {
             com.desk.dashboard.data.WeatherRepo.get(this@DeskApp).loadCache()
         }
         Ambient.init(this)
+        com.desk.dashboard.remote.RemoteHost.init(this)
         Apps.refresh(this) // preload the app list so it opens instantly
     }
 

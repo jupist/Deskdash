@@ -18,6 +18,8 @@
 
 Press and hold any tile, then drag it where you want it; the tiles around it make room. Drag a corner to resize, tap a tile for its settings, and undo any step. Save different arrangements as presets and switch between them.
 
+Or do it from your phone: with Deskdash on both and the same Wi-Fi, pair once with a code, then move and resize the tablet's tiles and switch presets from the couch. No account or server; the two talk directly over an encrypted connection.
+
 <p align="center"><img src="docs/edit.gif" alt="Moving the weather tile and widening the agenda in edit mode" width="720"></p>
 
 ## Make it yours
@@ -90,6 +92,7 @@ Kotlin and Jetpack Compose in a single activity, using Compose foundation only (
 | `calendar/` | Device, iCal and Google sources merged into one event list |
 | `alarm/` | Alarm and timer scheduling, the ringing service and the alarm screen |
 | `ui/` | Theme, shared components, settings, night screen and onboarding |
+| `remote/` | Phone control: local network discovery, pairing and the encrypted connection |
 | `data/`, `system/`, `media/` | Settings, weather, backup, permissions, location and media sessions |
 
 Weather comes from [Open-Meteo](https://open-meteo.com) and place search from [Photon](https://photon.komoot.io). [CREDITS.md](CREDITS.md) lists all data, sound and font sources.

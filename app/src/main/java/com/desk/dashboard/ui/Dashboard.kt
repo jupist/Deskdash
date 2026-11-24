@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +111,9 @@ fun DashboardScreen(
             val grid = Grid.sizeFor(maxWidth.value, gridH.value)
             val layout = remember(preset, grid) { BoardStore.layoutFor(preset, grid.w, grid.h) }
             CurrentGrid.value = layout
+            // So a phone can draw this board to scale (the screensaver reports the same grid).
+            val info = com.desk.dashboard.remote.ScreenInfo(grid.w, grid.h, maxWidth.value, gridH.value)
+            SideEffect { com.desk.dashboard.remote.RemoteHost.reportScreen(info) }
             // Tiles from the preset's other screen sizes that don't fit this one.
             hidden = remember(preset, layout) {
                 val here = layout.tiles.map { it.id }.toSet()

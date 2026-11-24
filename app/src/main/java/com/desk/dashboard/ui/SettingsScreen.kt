@@ -63,6 +63,7 @@ private val pages = listOf(
     Page("night", "Night mode", DashIcons.moon, "Schedule and dim clock"),
     Page("display", "Display & power", DashIcons.phone, "Screen on, home app"),
     Page("permissions", "Permissions", DashIcons.shield, "What Deskdash can access"),
+    Page("remote", "Phone control", DashIcons.link, "Edit this dashboard from a phone"),
     Page("backup", "Backup", DashIcons.file, "Export and import your setup"),
     Page("about", "About", DashIcons.info, "Version and credits"),
 )
@@ -162,6 +163,7 @@ private fun PageContent(id: String, showOverlay: ((@Composable () -> Unit)?) -> 
         }
         "display" -> DisplaySection()
         "permissions" -> PermissionsSection()
+        "remote" -> RemotePage(showOverlay)
         "backup" -> BackupPage(showOverlay)
         "about" -> AboutPage()
     }
