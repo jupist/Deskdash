@@ -327,7 +327,7 @@ private fun showsLive(t: TileSpec, b: RemoteBoard) = when (t.type) {
     // These read the tablet's settings through the remote context.
     "alarm" -> "prefs" in b.features
     "countdown" -> b.dates != null
-    "checklist" -> t.config["gtasks"] == null
+    "checklist" -> t.config["gtasks"] == null && t.config["tasks"] == null
     else -> false
 }
 

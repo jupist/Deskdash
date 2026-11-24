@@ -1,11 +1,11 @@
 package com.desk.dashboard.modules
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.rememberCoroutineScope
-import com.desk.dashboard.calendar.GoogleCalendar
-import com.desk.dashboard.calendar.GoogleTasks
+import com.desk.dashboard.tasks.GoogleTasks
+import com.desk.dashboard.tasks.TaskList
+import com.desk.dashboard.tasks.TaskService
+import com.desk.dashboard.tasks.Tasks
+import com.desk.dashboard.board.LocalDashActions
 import com.desk.dashboard.ui.Chips
 import com.desk.dashboard.ui.Segmented
 import kotlinx.coroutines.delay
@@ -214,47 +214,61 @@ private data class Item(val done: Boolean, val text: String, val id: String? = n
 private fun TileScope.items() = strings("items").map { Item(it.startsWith("1|"), it.substringAfter('|')) }
 private fun TileScope.saveItems(list: List<Item>) = set("items", list.map { (if (it.done) "1|" else "0|") + it.text })
 
-/** The Google Tasks list this tile shows, or null for its own items. */
-private fun TileScope.googleList() = strOrNull("gtasks")
+/**
+ * Where this tile's items come from: null for its own, else a service and list ("google:<id>",
+ * "todoist:<id>"; an empty id means the list isn't chosen yet). Tiles from before Todoist kept
+ * a Google list as "gtasks".
+ */
+private fun TileScope.source(): Pair<TaskService, String>? {
+    strOrNull("tasks")?.let { v ->
+        val s = Tasks.service(v.substringBefore(':')) ?: return null
+        return s to v.substringAfter(':', "")
+    }
+    return strOrNull("gtasks")?.let { GoogleTasks to it }
+}
 
 object ChecklistModule : Module(
-    "checklist", "Checklist", "A to-do list you tick off right on the tile, or one of your Google Tasks lists.",
+    "checklist", "Checklist", "A to-do list you tick off right on the tile, or a Google Tasks or Todoist list.",
     DashIcons.checklist, Size(3, 3), Size(2, 2),
 ) {
-    override fun label(t: TileScope) = t.str("title", t.strOrNull("gtasksName") ?: "To do")
+    override fun label(t: TileScope) = t.str("title", t.strOrNull("tasksName") ?: t.strOrNull("gtasksName") ?: "To do")
 
     @Composable
     override fun Content(t: TileScope) {
-        val list = t.googleList()
-        if (list == null) {
+        val src = t.source()
+        if (src == null) {
             val items = t.items()
             ListBody(
                 t, items, status = null,
                 onToggle = { i -> t.saveItems(items.toMutableList().also { it[i] = items[i].copy(done = !items[i].done) }) },
                 onAdd = { text -> t.saveItems(items + Item(false, text)) },
             )
-        } else if (list.isEmpty()) {
-            ListBody(t, emptyList(), status = "Choose a Google Tasks list in this tile's settings", onToggle = {}, onAdd = {})
-        } else {
-            val context = LocalContext.current
-            val scope = rememberCoroutineScope()
-            val state = GoogleTasks.lists.collectAsStateWithLifecycle().value[list]
-            // Picks up changes made in the Tasks app or elsewhere.
-            LaunchedEffect(list) {
-                while (true) { GoogleTasks.refresh(context, list); delay(5 * 60_000L) }
-            }
-            val items = state?.tasks.orEmpty().map { Item(it.done, it.title, it.id) }
-            ListBody(
-                t, items,
-                status = state?.error ?: if (state?.tasks == null) "Loading Google Tasks…" else null,
-                onToggle = { i -> items[i].id?.let { id -> scope.launch { GoogleTasks.setDone(context, list, id, !items[i].done) } } },
-                onAdd = { text -> scope.launch { GoogleTasks.add(context, list, text) } },
-            )
+            return
         }
+        val (service, list) = src
+        val context = LocalContext.current
+        if (list.isEmpty() || !service.connected(context)) {
+            val why = if (!service.connected(context)) "Connect ${service.name} in Settings › Tasks" else "Choose a ${service.name} list in this tile's settings"
+            ListBody(t, emptyList(), status = why, onToggle = {}, onAdd = {}, canAdd = false)
+            return
+        }
+        val scope = rememberCoroutineScope()
+        val state = Tasks.lists.collectAsStateWithLifecycle().value[Tasks.key(service, list)]
+        // Picks up changes made in the service's own app or elsewhere.
+        LaunchedEffect(service, list) {
+            while (true) { Tasks.refresh(context, service, list); delay(5 * 60_000L) }
+        }
+        val items = state?.items.orEmpty().map { Item(it.done, it.title, it.id) }
+        ListBody(
+            t, items,
+            status = state?.error ?: if (state?.items == null) "Loading ${service.name}…" else null,
+            onToggle = { i -> items[i].id?.let { id -> scope.launch { Tasks.setDone(context, service, list, id, !items[i].done) } } },
+            onAdd = { text -> scope.launch { Tasks.add(context, service, list, text) } },
+        )
     }
 
     @Composable
-    private fun ListBody(t: TileScope, items: List<Item>, status: String?, onToggle: (Int) -> Unit, onAdd: (String) -> Unit) {
+    private fun ListBody(t: TileScope, items: List<Item>, status: String?, onToggle: (Int) -> Unit, onAdd: (String) -> Unit, canAdd: Boolean = true) {
         val hideDone = t.bool("hideDone", false)
         val visible = items.withIndex().filter { !hideDone || !it.value.done }
         val left = items.count { !it.done }
@@ -284,7 +298,7 @@ object ChecklistModule : Module(
                         )
                     }
                 }
-                item {
+                if (canAdd) item {
                     if (adding) {
                         AddField(onDone = { text ->
                             if (text.isNotBlank()) onAdd(text.trim())
@@ -329,16 +343,18 @@ object ChecklistModule : Module(
 
     @Composable
     override fun Settings(t: TileScope) {
-        val list = t.googleList()
-        TitleSetting(t, t.strOrNull("gtasksName") ?: "To do")
+        val context = LocalContext.current
+        val actions = LocalDashActions.current
+        val src = t.source()
+        TitleSetting(t, t.strOrNull("tasksName") ?: "To do")
         SwitchRow("Hide finished items", checked = t.bool("hideDone", false), onToggle = { t.set("hideDone", !t.bool("hideDone", false)) })
         SettingRow("Items from") {
-            Segmented(listOf(false, true), list != null, { if (it) "Google Tasks" else "This tile" }) { google ->
-                if (!google) t.setAll("gtasks" to null, "gtasksName" to null)
-                else if (list == null) t.set("gtasks", "") // shows the list picker below
+            Segmented(listOf<TaskService?>(null) + Tasks.services, src?.first, { it?.name ?: "This tile" }) { s ->
+                if (s == null) t.setAll("tasks" to null, "tasksName" to null, "gtasks" to null, "gtasksName" to null)
+                else if (s != src?.first) t.setAll("tasks" to "${s.id}:", "tasksName" to null, "gtasks" to null, "gtasksName" to null)
             }
         }
-        if (list == null) {
+        if (src == null) {
             val items = t.items()
             SettingRow("Finished items", "${items.count { it.done }} of ${items.size}") {
                 MiniButton("Clear finished", Dash.ink) { t.saveItems(items.filter { !it.done }) }
@@ -348,60 +364,41 @@ object ChecklistModule : Module(
                     IconButton(DashIcons.trash, size = 30.dp, iconSize = 13.dp) { t.saveItems(items.filterIndexed { j, _ -> j != i }) }
                 }
             }
-        } else {
-            GoogleTasksPicker(t, list)
+            return
         }
+        val (service, list) = src
+        if (!service.connected(context)) {
+            SettingRow("${service.name} isn't connected", "Connect it once in Settings › Tasks, then pick a list here") {
+                MiniButton("Open", Dash.ink, Dash.accent) { actions?.openSettings?.invoke("tasks") }
+            }
+            return
+        }
+        ListPicker(t, service, list)
     }
 
-    /** Connects Google Tasks (asking for access the first time) and chooses the list. */
+    /** The lists of a connected service, to choose the one this tile shows. */
     @Composable
-    private fun GoogleTasksPicker(t: TileScope, list: String) {
+    private fun ListPicker(t: TileScope, service: TaskService, list: String) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        var lists by remember { mutableStateOf<List<GoogleTasks.TaskList>?>(null) }
-        var status by remember { mutableStateOf<String?>(null) }
-
-        suspend fun load(token: String) {
-            runCatching { GoogleTasks.taskLists(token) }
-                .onSuccess { lists = it; status = if (it.isEmpty()) "No task lists in this Google account" else null }
-                .onFailure { status = it.message }
+        var lists by remember(service) { mutableStateOf<List<TaskList>?>(null) }
+        var status by remember(service) { mutableStateOf<String?>(null) }
+        LaunchedEffect(service) {
+            runCatching { service.lists(context) }.onSuccess { lists = it }.onFailure { status = Tasks.message(it) }
         }
-        val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
-            when (val a = GoogleCalendar.fromIntent(context, r.data)) {
-                is GoogleCalendar.Auth.Token -> scope.launch { load(a.token) }
-                is GoogleCalendar.Auth.Failed -> status = a.message
-                is GoogleCalendar.Auth.NeedsConsent -> status = "Access wasn't approved"
-            }
-        }
-        fun connect() {
-            status = "Connecting…"
-            scope.launch {
-                when (val a = GoogleCalendar.authorize(context, GoogleTasks.SCOPE)) {
-                    is GoogleCalendar.Auth.Token -> load(a.token)
-                    is GoogleCalendar.Auth.NeedsConsent -> consent.launch(IntentSenderRequest.Builder(a.intent.intentSender).build())
-                    is GoogleCalendar.Auth.Failed -> status = a.message
-                }
-            }
-        }
-        // Already allowed: list the choices straight away, without a sign-in screen.
-        LaunchedEffect(Unit) {
-            (GoogleCalendar.authorize(context, GoogleTasks.SCOPE) as? GoogleCalendar.Auth.Token)?.let { load(it.token) }
-        }
-
         val l = lists
-        if (l == null) {
-            SettingRow("Google Tasks", status ?: "Sign in to show one of your task lists") {
-                MiniButton("Connect", Dash.ink, Dash.accent) { connect() }
+        when {
+            l == null -> SettingRow("List", status ?: "Loading…") {}
+            l.isEmpty() -> SettingRow("List", "No lists in this ${service.name} account") {}
+            else -> {
+                SettingRow("List", if (list.isEmpty()) "Choose which list this tile shows" else null) {}
+                Chips(l, { it.id == list }, { it.title }) { t.setAll("tasks" to "${service.id}:${it.id}", "tasksName" to it.title, "gtasks" to null, "gtasksName" to null) }
             }
-        } else {
-            SettingRow("List", if (list.isEmpty()) "Choose which list this tile shows" else null) {}
-            Chips(l, { it.id == list }, { it.title }) { t.setAll("gtasks" to it.id, "gtasksName" to it.title) }
-            status?.let { Spacer(Modifier.height(8.dp)); Txt(it, Type.meta, Dash.danger, maxLines = 3) }
-            if (list.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                SettingRow("Finished tasks", "Hides them in Google Tasks too") {
-                    MiniButton("Clear finished", Dash.ink) { scope.launch { GoogleTasks.clearDone(context, list) } }
-                }
+        }
+        if (list.isNotEmpty() && service.clearsDone) {
+            Spacer(Modifier.height(8.dp))
+            SettingRow("Finished tasks", "Hides them in ${service.name} too") {
+                MiniButton("Clear finished", Dash.ink) { scope.launch { Tasks.clearDone(context, service, list) } }
             }
         }
     }

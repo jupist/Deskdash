@@ -25,4 +25,4 @@ If sign-in says *"This build isn't registered with Google yet (developer error)"
 
 ## Google Tasks
 
-A Checklist tile can show one of your Google Tasks lists instead of its own items: in the tile's settings, set *Items from* to **Google Tasks**, connect, and pick a list. Ticking and adding items saves to Google, and changes made in the Tasks app show up within five minutes. It uses the same OAuth client as above, with the Tasks API turned on.
+A Checklist tile can show one of your Google Tasks lists instead of its own items: connect Google Tasks once in *Settings › Tasks*, then in the tile's settings set *Items from* to **Google Tasks** and pick a list. Ticking and adding items saves to Google, and changes made in the Tasks app show up within five minutes. It uses the same OAuth client as above, with the Tasks API turned on.

@@ -65,6 +65,7 @@ import com.desk.dashboard.ui.Type
 import com.desk.dashboard.ui.pressable
 import com.desk.dashboard.ui.tc
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -107,6 +108,7 @@ object AgendaModule : Module(
 
     @Composable
     override fun Content(t: TileScope) {
+        val overlay = com.desk.dashboard.board.LocalOverlay.current
         val context = LocalContext.current
         val actions = LocalDashActions.current
         val days = t.int("days", 2)
@@ -160,7 +162,7 @@ object AgendaModule : Module(
                     }
                     item(key = e.key) {
                         EventRow(e, minute, isNext = e == nextTimed, showDay = !grouped && d != today, dots = dots, location = t.bool("location", false)) {
-                            open(context, e.open)
+                            overlay { EventSheet(e) { overlay(null) } }
                         }
                     }
                 }
@@ -293,3 +295,56 @@ object CountdownModule : Module(
     }
 }
 
+private val sheetDay = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
+
+/**
+ * One event from the agenda: when and where, a way to keep it in Important dates (a copy, so it
+ * stays even if the event changes), and the event in its calendar app.
+ */
+@Composable
+private fun EventSheet(e: Event, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val dao = context.datesDao()
+    val day = e.start.toLocalDate()
+    val saved by remember { dao.upcoming(LocalDate.of(1970, 1, 1)) }.collectAsStateWithLifecycle(emptyList())
+    val added = saved.any { it.title == e.title && it.date == day }
+    var category by remember { mutableStateOf(com.desk.dashboard.data.Category.OTHER) }
+    val h24 = android.text.format.DateFormat.is24HourFormat(context)
+    fun clock(t: LocalDateTime) = timeText(t, h24).let { (a, b) -> a + (b?.let { " ${it.lowercase()}" } ?: "") }
+    val whenText = day.format(sheetDay) + when {
+        e.allDay -> ", all day"
+        e.end.toLocalDate() == day && e.end.isAfter(e.start) -> ", ${clock(e.start)} to ${clock(e.end)}"
+        else -> ", ${clock(e.start)}"
+    }
+    com.desk.dashboard.ui.Overlay(onDismiss = onClose, width = 520.dp) {
+        com.desk.dashboard.ui.PanelHeader(e.title, onClose)
+        Txt(whenText, Type.body, Dash.ink, maxLines = 2)
+        Spacer(Modifier.height(4.dp))
+        Txt(listOfNotNull(e.location, e.calendar.takeIf { it.isNotBlank() }).joinToString(", "), Type.meta, Dash.muted, maxLines = 2)
+        Spacer(Modifier.height(18.dp))
+        if (added) {
+            Txt("In Important dates", Type.meta, Dash.accentText)
+        } else {
+            Txt("Keep it in Important dates as", Type.meta, Dash.muted)
+            Spacer(Modifier.height(8.dp))
+            com.desk.dashboard.ui.Chips(com.desk.dashboard.data.Category.entries, { it == category }, { it.label }) { category = it }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!added) com.desk.dashboard.ui.PrimaryButton("Add to Important dates") {
+                scope.launch {
+                    dao.upsert(
+                        UpcomingDate(
+                            title = e.title.take(UpcomingDate.TITLE_MAX), date = day,
+                            time = if (e.allDay) null else e.start.toLocalTime().withSecond(0).withNano(0),
+                            category = category,
+                        )
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            if (e.open != OpenTarget.None) MiniButton("Open in calendar", Dash.ink) { onClose(); open(context, e.open) }
+        }
+    }
+}

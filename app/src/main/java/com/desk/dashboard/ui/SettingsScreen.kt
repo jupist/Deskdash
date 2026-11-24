@@ -61,6 +61,7 @@ private val pages = listOf(
     Page("appearance", "Appearance", DashIcons.palette, "Theme, fonts, corners"),
     Page("dashboard", "Dashboard", DashIcons.grid, "Layout, presets, top bar"),
     Page("calendars", "Calendars", DashIcons.calendar, "Device, iCal links, Google"),
+    Page("tasks", "Tasks", DashIcons.checklist, "Google Tasks and Todoist"),
     Page("countdowns", "Important dates", DashIcons.flag, "Exams, deadlines, trips and more"),
     Page("weather", "Weather", DashIcons.cloud, "Place and units"),
     Page("alarm", "Alarm", DashIcons.bell, "Time, repeat, sound, snooze"),
@@ -168,6 +169,7 @@ private fun PageContent(id: String, showOverlay: ((@Composable () -> Unit)?) -> 
             SubscriptionsSection()
             GoogleSection()
         }
+        "tasks" -> TasksPage()
         "countdowns" -> DatesSection(showOverlay)
         "weather" -> WeatherSection()
         "alarm" -> AlarmSection(showOverlay)

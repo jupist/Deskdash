@@ -44,12 +44,12 @@ Layouts adapt to phones and tablets, in landscape or portrait. After the hours y
 
 | | |
 |---|---|
-| **Time** | Clock, world clocks, and the days left until the important dates you add |
+| **Time** | Clock, world clocks, and the days left until the important dates you add (or pick from your calendar) |
 | **Calendar** | One agenda from device calendars, iCal links, `.ics` files and Google Calendar |
 | **Weather** | Current conditions, hourly and 7-day forecast for your location or any place |
 | **Music** | Now playing with art and controls for the music app you choose |
 | **Alarm & timers** | Alarm with repeat days and snooze; timer, stopwatch and focus sessions. They ring over the lock screen and survive reboots. |
-| **Everyday** | Checklist (its own items or a Google Tasks list), sticky note, quote of the day, photo frame |
+| **Everyday** | Checklist (its own items, a Google Tasks list or a Todoist project), sticky note, quote of the day, photo frame |
 | **Apps** | Favourite apps, recently used apps, app shortcuts |
 | **System** | Battery, storage and network; volume and brightness; ambient rain or noise |
 
@@ -65,7 +65,8 @@ A short setup on first launch covers theme, location, calendars and permissions;
 - **Screensaver:** *Settings › Display & power › Screensaver* shows the dashboard while the device charges.
 - **Remote control:** on the tablet, turn on *Settings › Remote control › Edit from another device* and tap **Pair**. On the phone, the same page lists the tablet; tap it and enter the code. Both need to be on the same Wi-Fi (guest networks usually keep devices apart).
 - **Samsung:** add Deskdash to *Battery › Background usage limits › Never sleeping apps* so alarms aren't delayed.
-- **Google Calendar and Google Tasks sign-in** need an OAuth client in your own build ([setup](docs/GOOGLE_CALENDAR.md)). Device calendars and iCal links work without it.
+- **Tasks:** *Settings › Tasks* connects Todoist (paste your API token from Todoist's *Settings › Integrations › Developer*) or Google Tasks; then pick a list in a Checklist tile's settings.
+- **Google Calendar and Google Tasks sign-in** need an OAuth client in your own build ([setup](docs/GOOGLE_CALENDAR.md)). Device calendars, iCal links and Todoist work without it.
 
 ## Build
 
@@ -97,6 +98,7 @@ Kotlin and Jetpack Compose in a single activity, using Compose foundation only (
 | `board/` | Grid model, layout fitting, presets and the drag-and-resize editor |
 | `modules/` | The tiles; each is a `Module` with its content and settings |
 | `calendar/` | Device, iCal and Google sources merged into one event list |
+| `tasks/` | Google Tasks and Todoist lists for the Checklist tile |
 | `alarm/` | Alarm and timer scheduling, the ringing service and the alarm screen |
 | `ui/` | Theme, shared components, settings, night screen and onboarding |
 | `remote/` | Remote control: local network discovery, pairing and the encrypted connection |

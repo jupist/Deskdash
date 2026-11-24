@@ -69,6 +69,8 @@ fun TextInput(
     modifier: Modifier = Modifier,
     /** Digits only, with the number keyboard (codes). */
     numeric: Boolean = false,
+    /** Hidden as dots, with no suggestions (tokens). */
+    secret: Boolean = false,
 ) {
     val focus = LocalFocusManager.current
     BasicTextField(
@@ -77,7 +79,9 @@ fun TextInput(
         singleLine = true,
         textStyle = Type.body.copy(color = Dash.ink),
         cursorBrush = SolidColor(Dash.ink),
-        keyboardOptions = if (numeric) KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword, imeAction = ImeAction.Done)
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        keyboardOptions = if (secret) KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Done)
+            else if (numeric) KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword, imeAction = ImeAction.Done)
             else KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
         modifier = modifier.fillMaxWidth(),
@@ -88,7 +92,7 @@ fun TextInput(
                     inner()
                 }
                 // Character counter appears once the user is close to the limit.
-                if (!numeric && value.length > maxLength - 10) Txt("${value.length}/$maxLength", Type.small, Dash.muted)
+                if (!numeric && !secret && value.length > maxLength - 10) Txt("${value.length}/$maxLength", Type.small, Dash.muted)
             }
         },
     )

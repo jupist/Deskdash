@@ -4,7 +4,8 @@
 
 - **Remote control:** a phone running Deskdash on the same Wi-Fi becomes the tablet's remote. Its whole app shows and changes the tablet until you exit: rearrange tiles by holding one, tap a tile to change it, and open the tablet's settings for appearance, presets, important dates, weather, alarm and night mode. Pair once with a 6-digit code; the connection is encrypted and needs no account or server. It's off until you turn on *Settings › Remote control › Edit from another device* on the tablet.
 - **Dedicated remote:** set a phone to work primarily as a remote and it opens on your tablets instead of its own dashboard, going straight into the tablet when there's only one and it's online.
-- **Google Tasks:** a Checklist tile can show one of your Google Tasks lists; ticking and adding items saves to Google.
+- **Google Tasks and Todoist:** a Checklist tile can show a Google Tasks list or a Todoist project instead of its own items; ticking and adding saves to the service. Connect them in the new *Settings › Tasks* (Todoist with your API token).
+- **Calendar events into Important dates:** tap an event in the agenda for its details, then *Add to Important dates* (with a category) to count down to it. It's kept as a copy, so it stays even if the event changes.
 - **Screensaver:** Deskdash can be Android's screensaver: the dashboard, view-only, while charging (Settings › Display & power).
 - **Backup:** export and import presets, layouts, settings, the alarm, important dates and iCal links as one file (Settings › Backup).
 - **Music app choice:** Now playing asks which app it resumes (Spotify, YouTube Music, any player…) instead of assuming Spotify.
