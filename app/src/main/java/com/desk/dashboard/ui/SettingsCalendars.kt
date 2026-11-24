@@ -94,8 +94,9 @@ private fun FeedRow(f: IcsFeed) {
             f.name,
             when {
                 f.error != null -> f.error
-                f.url == null -> "Imported file · ${f.eventCount} events"
-                else -> "Synced ${ago(f.lastSync)} · ${f.eventCount} events"
+                f.url == null -> "${f.eventCount} events from a file"
+                f.lastSync <= 0 -> "Not synced yet"
+                else -> "${f.eventCount} events, synced ${ago(f.lastSync)}"
             },
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

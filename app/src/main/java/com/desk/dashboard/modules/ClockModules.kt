@@ -107,7 +107,7 @@ object ClockModule : Module(
                         }
                         if (showDate && boxH > 70.dp) {
                             Spacer(Modifier.height(4.dp))
-                            Txt("$date1 · $date2", Type.body, tc.ink)
+                            Txt("$date1 $date2", Type.body, tc.ink)
                         }
                     }
                 }
@@ -162,8 +162,10 @@ object WorldClockModule : Module(
                                     Txt(cityOf(z), Type.body, tc.ink)
                                     if (rowH > 40.dp) {
                                         Txt(
-                                            when (dayDiff) { 0L -> "Today"; 1L -> "Tomorrow"; -1L -> "Yesterday"; else -> "" } +
+                                            listOfNotNull(
+                                                when (dayDiff) { 0L -> "Today"; 1L -> "Tomorrow"; -1L -> "Yesterday"; else -> null },
                                                 offsetLabel(zone, here),
+                                            ).joinToString(", "),
                                             Type.meta, tc.muted,
                                         )
                                     }
@@ -177,14 +179,13 @@ object WorldClockModule : Module(
         }
     }
 
-    private fun offsetLabel(zone: ZoneId, here: ZoneId): String {
+    private fun offsetLabel(zone: ZoneId, here: ZoneId): String? {
         val now = java.time.Instant.now()
         val diff = (zone.rules.getOffset(now).totalSeconds - here.rules.getOffset(now).totalSeconds) / 60
-        if (diff == 0) return ""
-        val sign = if (diff > 0) "+" else "−"
+        if (diff == 0) return null
         val h = kotlin.math.abs(diff) / 60
         val m = kotlin.math.abs(diff) % 60
-        return " · $sign${h}h" + if (m != 0) " ${m}m" else ""
+        return "${h}h" + (if (m != 0) " ${m}m" else "") + if (diff > 0) " ahead" else " behind"
     }
 
     @Composable

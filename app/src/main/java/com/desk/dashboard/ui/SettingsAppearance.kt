@@ -101,7 +101,7 @@ internal fun AppearancePage() {
                 ) {
                     Txt("12:34", TextStyle(fontFamily = f.display, fontSize = 30.sp, lineHeight = 34.sp), Dash.ink)
                     Spacer(Modifier.weight(1f))
-                    Txt("Agenda · 3 left", TextStyle(fontFamily = f.text, fontSize = 12.sp, lineHeight = 16.sp), Dash.muted)
+                    Txt("3 events today", TextStyle(fontFamily = f.text, fontSize = 12.sp, lineHeight = 16.sp), Dash.muted)
                     Spacer(Modifier.height(6.dp))
                     Txt(f.name, Type.bodySmall, if (on) Dash.accentText else Dash.ink)
                 }
@@ -132,7 +132,7 @@ private fun CustomFontRow(which: String, title: String, hint: String) {
         }
     }
     RowDivider()
-    SettingRow(title, error ?: if (exists) "$hint · file loaded" else hint) {
+    SettingRow(title, error ?: if (exists) "$hint (your file)" else hint) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (exists) MiniButton("Remove", Dash.muted) { scope.launch { AppearanceStore.clearFont(context, which) } }
             MiniButton("Choose file", Dash.ink, Dash.accent) {

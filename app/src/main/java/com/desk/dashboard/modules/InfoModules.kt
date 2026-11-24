@@ -98,7 +98,7 @@ object WeatherModule : Module(
                     when {
                         !state.loaded -> ""
                         state.city == null -> "Tap to set a place"
-                        state.failed -> "Offline · ${state.city}"
+                        state.failed -> "Offline"
                         else -> "Loading ${state.city}…"
                     },
                     Type.meta, tc.muted, maxLines = 2,
@@ -187,14 +187,14 @@ private fun WeatherDetail(f: Forecast, city: String?, stale: Boolean, onClose: (
             Spacer(Modifier.width(16.dp))
             Column {
                 Txt(conditionWord(f.current.code), Type.body, Dash.ink)
-                Txt(
+                // Spaced apart rather than strung together with separators.
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     listOfNotNull(
                         f.current.feels?.let { "Feels ${it.roundToInt()}°" },
                         f.current.humidity?.let { "Humidity ${it.roundToInt()}%" },
                         f.current.wind?.let { "Wind ${it.roundToInt()} ${f.windUnit}" },
-                    ).joinToString(" · "),
-                    Type.meta, Dash.muted,
-                )
+                    ).forEach { Txt(it, Type.meta, Dash.muted) }
+                }
             }
         }
         if (stale) {
@@ -255,7 +255,7 @@ object SystemModule : Module(
                     FitText("${battery?.percent ?: "--"}%", Type.big, tc.ink, Modifier.fillMaxSize(), sample = "100%", maxSize = 64f)
                 } else {
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
-                        StatRow("Battery", "${battery?.percent ?: "--"}%" + (stats.batteryTemp?.let { " · $it°C" } ?: ""))
+                        StatRow("Battery", "${battery?.percent ?: "--"}%" + (stats.batteryTemp?.let { " at $it°C" } ?: ""))
                         StatRow("Storage", stats.storage)
                         if (boxH > 130.dp) StatRow("Network", stats.network)
                         if (boxH > 160.dp) StatRow("Uptime", stats.uptime)
@@ -289,7 +289,7 @@ private class SystemStats(val storage: String, val network: String, val uptime: 
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "Mobile data"
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
                 else -> "Connected"
-            } + if (caps != null && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) " · no internet" else ""
+            } + if (caps != null && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) ", no internet" else ""
             val up = SystemClock.elapsedRealtime() / 60_000
             val uptime = if (up >= 1440) "${up / 1440}d ${up / 60 % 24}h" else "${up / 60}h ${up % 60}m"
             val temp = c.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))

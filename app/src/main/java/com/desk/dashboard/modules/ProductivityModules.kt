@@ -121,7 +121,7 @@ object TimerModule : Module(
         }
         val meta = when {
             mode == "focus" -> (if (s.phase == "work") "Focus" else "Break") +
-                (if (s.sessions > 0 && s.sessionsDay == now / 86_400_000) " · ${s.sessions} done" else "")
+                (if (s.sessions > 0 && s.sessionsDay == now / 86_400_000) ", ${s.sessions} done" else "")
             s.done -> "Done"
             else -> null
         }

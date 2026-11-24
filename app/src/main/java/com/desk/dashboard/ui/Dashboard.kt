@@ -429,7 +429,7 @@ internal fun TileSettingsPanel(spec: TileSpec, onClose: () -> Unit, update: ((Ti
         }
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Txt("${spec.w} × ${spec.h} cells · drag the corner to resize", Type.meta, Dash.muted, Modifier.weight(1f))
+            Txt("${spec.w} × ${spec.h} cells. Drag the corner to resize.", Type.meta, Dash.muted, Modifier.weight(1f))
             MiniButton("Remove tile", Dash.danger, Dash.danger, onRemove)
         }
     }

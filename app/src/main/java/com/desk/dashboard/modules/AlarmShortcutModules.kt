@@ -137,7 +137,7 @@ object AlarmModule : Module(
 fun alarmMeta(c: AlarmConfig, today: LocalDate): String {
     c.snoozeAt?.let {
         val t = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime()
-        return "Snoozed · %02d:%02d".format(t.hour, t.minute)
+        return "Snoozed until %02d:%02d".format(t.hour, t.minute)
     }
     if (!c.enabled) return "Off"
     val next = c.next().toLocalDate()
@@ -146,7 +146,7 @@ fun alarmMeta(c: AlarmConfig, today: LocalDate): String {
         today.plusDays(1) -> "tmrw"
         else -> next.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
     }
-    return if (c.ringsOnce) "Once · $day" else "On · $day"
+    return if (c.ringsOnce) "Once, $day" else "Rings $day"
 }
 
 object ShortcutModule : Module(

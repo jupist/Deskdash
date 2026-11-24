@@ -267,11 +267,11 @@ object CountdownModule : Module(
                 }
                 Row(Modifier.weight(1f).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Txt(e.title, Type.body, tc.ink, Modifier.weight(2f, fill = false))
-                    val sub = listOfNotNull(
+                    val subs = listOfNotNull(
                         e.time?.takeIf { t.bool("time", true) }?.let { timeText(it, android.text.format.DateFormat.is24HourFormat(LocalContext.current)).first },
                         e.note?.takeIf { t.bool("notes", true) },
-                    ).joinToString(" · ")
-                    if (sub.isNotEmpty() && !narrow) Txt(sub, Type.meta, tc.muted, Modifier.padding(start = 12.dp).weight(1f, fill = false))
+                    )
+                    if (!narrow) subs.forEach { Txt(it, Type.meta, tc.muted, Modifier.padding(start = 12.dp).weight(1f, fill = false)) }
                 }
                 Txt(
                     when (days) { 0L -> "today"; 1L -> if (narrow) "tmrw" else "tomorrow"; else -> "${days}d" },

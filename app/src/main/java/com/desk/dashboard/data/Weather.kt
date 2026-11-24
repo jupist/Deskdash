@@ -243,7 +243,7 @@ class WeatherRepo private constructor(private val context: Context) {
             latitude = coords[1].jsonPrimitive.double,
             longitude = coords[0].jsonPrimitive.double,
             country = str("country"),
-            admin1 = listOfNotNull(label, where.ifEmpty { null }).joinToString(" · ").ifEmpty { null },
+            admin1 = listOfNotNull(label, where.ifEmpty { null }).joinToString(", ").ifEmpty { null },
         ) to isArea
     }
 

@@ -1,5 +1,7 @@
 package com.desk.dashboard.ui
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -85,7 +87,12 @@ fun NightScreen(cfg: DisplayConfig?, onTap: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 val (t, ap) = timeText(e.start, h24)
                 val day = if (e.start.toLocalDate() != now.toLocalDate()) "TMRW " else ""
-                Txt("$day$t${ap?.let { " $it" } ?: ""} · ${e.title}".uppercase(), Type.label.copy(fontSize = 14.sp, lineHeight = 20.sp), NightMuted)
+                Row {
+                    val style = Type.label.copy(fontSize = 14.sp, lineHeight = 20.sp)
+                    Txt("$day$t${ap?.let { " $it" } ?: ""}".uppercase(), style, NightMuted)
+                    Spacer(Modifier.width(14.dp))
+                    Txt(e.title.uppercase(), style, NightMuted)
+                }
             }
         }
     }
@@ -102,5 +109,5 @@ private fun alarmLine(c: AlarmConfig?, today: LocalDate): String {
         else -> at.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
     }
     val what = if (c.snoozeAt != null) "SNOOZED" else "ALARM"
-    return "$what  ${at.format(hhmm)} · $day"
+    return "$what  $day ${at.format(hhmm)}"
 }
