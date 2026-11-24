@@ -60,8 +60,8 @@ private fun now() = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES)
 
 data class Battery(val percent: Int, val charging: Boolean, val full: Boolean) {
     override fun toString() = when {
-        full -> "$percent% · full"
-        charging -> "$percent% · charging"
+        full -> "$percent% full"
+        charging -> "$percent% charging"
         else -> "$percent%"
     }
 }
