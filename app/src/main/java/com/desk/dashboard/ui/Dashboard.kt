@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -214,8 +215,6 @@ private fun putBack(context: android.content.Context, tiles: List<TileSpec>, und
 private fun TopBar(display: DisplayConfig, actions: DashActions) {
     BoxWithConstraints(Modifier.fillMaxWidth().height(Dash.topBar)) {
         val roomy = maxWidth > 760.dp
-        // Phones in landscape: shorter slider tracks, so the bar keeps space around them.
-        val narrow = maxWidth < 940.dp
         Row(Modifier.fillMaxSize().padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             // Dot icon: the list of installed apps (how to reach other apps in home-app mode).
             Box(Modifier.clip(Dash.smallShape).pressable(actions.openApps).padding(horizontal = 8.dp, vertical = 12.dp)) { DotGrid() }
@@ -225,11 +224,18 @@ private fun TopBar(display: DisplayConfig, actions: DashActions) {
                 HSpace(20.dp)
                 BatteryStat()
             }
-            Spacer(Modifier.weight(1f))
             if (display.barSliders && roomy) {
-                VolumeSlider(if (narrow) Modifier.width(190.dp) else Modifier, fill = narrow)
-                HSpace(16.dp)
-                BrightnessSlider(if (narrow) Modifier.width(190.dp) else Modifier, fill = narrow)
+                // Both sliders together in the middle, with clear space either side; on narrower
+                // screens (a phone in landscape) their tracks shorten rather than crowd the rest.
+                Row(
+                    Modifier.weight(1f).padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    VolumeSlider(Modifier.weight(1f, fill = false).widthIn(max = 228.dp), fill = true)
+                    BrightnessSlider(Modifier.weight(1f, fill = false).widthIn(max = 228.dp), fill = true)
+                }
+            } else {
                 Spacer(Modifier.weight(1f))
             }
             IconButton(DashIcons.grid, onClick = actions.editLayout)
