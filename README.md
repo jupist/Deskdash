@@ -92,7 +92,7 @@ Kotlin and Jetpack Compose in a single activity, using Compose foundation only (
 | `calendar/` | Device, iCal and Google sources merged into one event list |
 | `alarm/` | Alarm and timer scheduling, the ringing service and the alarm screen |
 | `ui/` | Theme, shared components, settings, night screen and onboarding |
-| `remote/` | Phone control: local network discovery, pairing and the encrypted connection |
+| `remote/` | Remote control: local network discovery, pairing and the encrypted connection |
 | `data/`, `system/`, `media/` | Settings, weather, backup, permissions, location and media sessions |
 
 Weather comes from [Open-Meteo](https://open-meteo.com) and place search from [Photon](https://photon.komoot.io). [CREDITS.md](CREDITS.md) lists all data, sound and font sources.

@@ -63,7 +63,7 @@ private val pages = listOf(
     Page("night", "Night mode", DashIcons.moon, "Schedule and dim clock"),
     Page("display", "Display & power", DashIcons.phone, "Screen on, home app"),
     Page("permissions", "Permissions", DashIcons.shield, "What Deskdash can access"),
-    Page("remote", "Phone control", DashIcons.link, "Edit this dashboard from a phone"),
+    Page("remote", "Remote control", DashIcons.link, "Change a dashboard from a phone"),
     Page("backup", "Backup", DashIcons.file, "Export and import your setup"),
     Page("about", "About", DashIcons.info, "Version and credits"),
 )

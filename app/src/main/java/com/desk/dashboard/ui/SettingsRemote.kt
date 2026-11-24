@@ -10,6 +10,7 @@ import androidx.compose.ui.window.PopupProperties
 import com.desk.dashboard.board.GridLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.CompositionLocalProvider
@@ -61,7 +62,7 @@ import com.desk.dashboard.remote.RemoteHost
 import com.desk.dashboard.remote.RemoteSession
 import kotlinx.coroutines.delay
 
-/** Settings › Phone control: let phones edit this dashboard, or edit another one from here. */
+/** Settings › Remote control: let phones edit this dashboard, or edit another one from here. */
 @Composable
 internal fun RemotePage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val context = LocalContext.current
@@ -89,7 +90,7 @@ internal fun RemotePage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                     Txt(code!!.chunked(3).joinToString(" "), Type.big, Dash.accentText)
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Txt("On the phone: Settings › Phone control, then tap this device. The code lasts 5 minutes.", Type.meta, Dash.muted, Modifier.weight(1f), maxLines = 3)
+                        Txt("On the phone: Settings › Remote control, then tap this device. The code lasts 5 minutes.", Type.meta, Dash.muted, Modifier.weight(1f), maxLines = 3)
                         HSpace(12.dp)
                         MiniButton("Cancel") { RemoteHost.closePairing() }
                     }
@@ -198,29 +199,7 @@ private fun RemoteHome(
                 }
             }
             is RemoteSession.State.NeedsCode -> CodeEntry(s.error) { session.pair(it) }
-            is RemoteSession.State.Ready -> RemoteTabs(session, s.board, onEditLayout, showSheet)
-        }
-    }
-}
-
-/** What a phone can change on the tablet, one tab each; tabs the tablet's version lacks are hidden. */
-@Composable
-private fun RemoteTabs(session: RemoteSession, b: RemoteBoard, onEditLayout: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    val tabs = buildList {
-        add("Layout")
-        if (b.dates != null) add("Important dates")
-        if (b.alarm != null) add("Alarm")
-    }
-    var tab by remember { mutableStateOf("Layout") }
-    Column(Modifier.fillMaxSize()) {
-        if (tabs.size > 1) {
-            Segmented(tabs, tab, { it }) { tab = it }
-            Spacer(Modifier.height(Dash.gap))
-        }
-        when (tab) {
-            "Important dates" -> RemoteCountdowns(session, b.dates.orEmpty(), showSheet)
-            "Alarm" -> b.alarm?.let { RemoteAlarmPanel(session, it, showSheet) }
-            else -> RemoteLayout(session, b, onEditLayout, showSheet)
+            is RemoteSession.State.Ready -> RemoteLayout(session, s.board, onEditLayout, showSheet)
         }
     }
 }
@@ -246,7 +225,14 @@ private fun ScaledBoard(
                 editing = editing,
                 onStartEditing = onStartEditing,
                 onChange = onChange,
-                onTileSettings = { spec -> if ("tiles" in b.features) showSheet { RemoteTileSettings(session, spec.id, showSheet) } },
+                // Outside edit mode a tap edits what the tile shows: the tablet's dates or alarm, else its settings.
+                onTileSettings = { spec ->
+                    when {
+                        !editing && spec.type == "countdown" && b.dates != null -> showSheet { RemoteDatesSheet(session, b, spec.id, showSheet) }
+                        !editing && spec.type == "alarm" && b.alarm != null -> showSheet { RemoteAlarmSheet(session, b, spec.id, showSheet) }
+                        "tiles" in b.features -> showSheet { RemoteTileSettings(session, spec.id, showSheet) }
+                    }
+                },
                 onTileConfig = { spec, cfg -> if ("tiles" in b.features) session.updateTile(spec.id) { it.copy(config = cfg) } },
                 modifier = Modifier.fillMaxSize(),
                 live = { "tiles" in b.features && showsLive(it) },
@@ -275,7 +261,7 @@ private fun RemoteLayout(session: RemoteSession, b: RemoteBoard, onEditLayout: (
         if ("presets" in b.features && b.presets.size > 1) {
             Box(Modifier.weight(1f)) { Chips(b.presets, { it.first == b.active }, { it.second }) { session.setActive(it.first) } }
         } else {
-            Txt("Tap a tile for its settings.", Type.meta, Dash.muted, Modifier.weight(1f))
+            Txt("Tap a tile to change it.", Type.meta, Dash.muted, Modifier.weight(1f))
         }
         HSpace(8.dp)
         PrimaryButton("Edit layout", onClick = onEditLayout)
@@ -330,62 +316,79 @@ private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: (
 
 private val dateFmt = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
 
+/** "Tile settings" in a tile's panel header, for its style and options. */
 @Composable
-private fun RemoteCountdowns(session: RemoteSession, dates: List<RemoteDate>, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+private fun TileSettingsLink(session: RemoteSession, b: RemoteBoard, tileId: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+    if ("tiles" in b.features) MiniButton("Tile settings") { showSheet { RemoteTileSettings(session, tileId, showSheet) } }
+}
+
+/** The tablet's important dates: add and remove, from a tap on the tile. */
+@Composable
+private fun RemoteDatesSheet(session: RemoteSession, b: RemoteBoard, tileId: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+    val state by session.state.collectAsStateWithLifecycle()
+    val dates = (state as? RemoteSession.State.Ready)?.board?.dates.orEmpty()
     var title by remember { mutableStateOf("") }
     var date by remember { mutableStateOf<LocalDate?>(null) }
     var category by remember { mutableStateOf(Category.OTHER) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
-        Section("Add a date") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextInput(title, { title = it }, "What's happening", UpcomingDate.TITLE_MAX, Modifier.weight(1f))
-                HSpace(8.dp)
-                PickerField(date?.format(dateFmt), "Date", Modifier.width(150.dp)) {
-                    showSheet { DatePickerOverlay(date, LocalDate.now(), onPick = { date = it; showSheet(null) }) { showSheet(null) } }
+    var picking by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        Overlay(onDismiss = { showSheet(null) }, width = 620.dp) {
+            PanelHeader("Important dates", { showSheet(null) }) { TileSettingsLink(session, b, tileId, showSheet) }
+            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextInput(title, { title = it }, "What's happening", UpcomingDate.TITLE_MAX, Modifier.weight(1f))
+                    HSpace(8.dp)
+                    PickerField(date?.format(dateFmt), "Date", Modifier.width(150.dp)) { picking = true }
                 }
-            }
-            Spacer(Modifier.height(10.dp))
-            Chips(Category.entries, { it == category }, { it.label }) { category = it }
-            Spacer(Modifier.height(12.dp))
-            PrimaryButton("Add") {
-                val d = date
-                if (title.isNotBlank() && d != null) {
-                    session.saveDate(null, title.trim(), d, null, category.name)
-                    title = ""; date = null; category = Category.OTHER
+                Spacer(Modifier.height(10.dp))
+                Chips(Category.entries, { it == category }, { it.label }) { category = it }
+                Spacer(Modifier.height(12.dp))
+                PrimaryButton("Add") {
+                    val d = date
+                    if (title.isNotBlank() && d != null) {
+                        session.saveDate(null, title.trim(), d, null, category.name)
+                        title = ""; date = null; category = Category.OTHER
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                if (dates.isEmpty()) Txt("No upcoming dates.", Type.meta, Dash.muted)
+                dates.forEachIndexed { i, d ->
+                    if (i > 0) RowDivider()
+                    val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), d.date)
+                    SettingRow(d.title, d.date.format(dateFmt) + " · " + when (days) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $days days" }) {
+                        IconButton(DashIcons.trash, size = 30.dp, iconSize = 13.dp) { session.deleteDate(d.id) }
+                    }
                 }
             }
         }
-        Section("On the tablet") {
-            if (dates.isEmpty()) Txt("No upcoming dates.", Type.meta, Dash.muted)
-            dates.forEachIndexed { i, d ->
-                if (i > 0) RowDivider()
-                val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), d.date)
-                SettingRow(d.title, d.date.format(dateFmt) + " · " + when (days) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $days days" }) {
-                    IconButton(DashIcons.trash, size = 30.dp, iconSize = 13.dp) { session.deleteDate(d.id) }
-                }
-            }
-        }
+        if (picking) DatePickerOverlay(date, LocalDate.now(), onPick = { date = it; picking = false }) { picking = false }
     }
 }
 
 private val ringFmt = DateTimeFormatter.ofPattern("EEE dd MMM 'at' HH:mm", Locale.ENGLISH)
 
+/** The tablet's alarm: on or off, time and days, from a tap on the tile. */
 @Composable
-private fun RemoteAlarmPanel(session: RemoteSession, a: RemoteAlarm, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    Section(null) {
-        SettingRow("Alarm", if (a.enabled) a.next?.let { "Rings ${it.format(ringFmt)}" } ?: "On" else "Off") {
-            Switch(a.enabled, { session.setAlarm(enabled = !a.enabled) })
+private fun RemoteAlarmSheet(session: RemoteSession, b: RemoteBoard, tileId: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+    val state by session.state.collectAsStateWithLifecycle()
+    val a = (state as? RemoteSession.State.Ready)?.board?.alarm ?: return
+    var picking by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        Overlay(onDismiss = { showSheet(null) }, width = 560.dp) {
+            PanelHeader("Alarm", { showSheet(null) }) { TileSettingsLink(session, b, tileId, showSheet) }
+            SettingRow("Alarm", if (a.enabled) a.next?.let { "Rings ${it.format(ringFmt)}" } ?: "On" else "Off") {
+                Switch(a.enabled, { session.setAlarm(enabled = !a.enabled) })
+            }
+            RowDivider()
+            NavRow("Time", "%02d:%02d".format(a.time.hour, a.time.minute)) { picking = true }
+            RowDivider()
+            SettingRow("Repeat", if (a.days.isEmpty()) "Once" else null) {}
+            Chips(DayOfWeek.entries, { it in a.days }, { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }) { d ->
+                session.setAlarm(days = if (d in a.days) a.days - d else a.days + d)
+            }
+            Spacer(Modifier.height(8.dp))
         }
-        RowDivider()
-        NavRow("Time", "%02d:%02d".format(a.time.hour, a.time.minute)) {
-            showSheet { TimePickerOverlay(a.time, onPick = { session.setAlarm(time = it); showSheet(null) }, onClear = null) { showSheet(null) } }
-        }
-        RowDivider()
-        SettingRow("Repeat", if (a.days.isEmpty()) "Once" else null) {}
-        Chips(DayOfWeek.entries, { it in a.days }, { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }) { d ->
-            session.setAlarm(days = if (d in a.days) a.days - d else a.days + d)
-        }
-        Spacer(Modifier.height(8.dp))
+        if (picking) TimePickerOverlay(a.time, onPick = { session.setAlarm(time = it); picking = false }, onClear = null) { picking = false }
     }
 }
 
@@ -404,7 +407,7 @@ private fun CodeEntry(error: String?, onPair: (String) -> Unit) {
     Section(null) {
         Txt("Enter the code shown on the tablet", Type.body, Dash.ink)
         Spacer(Modifier.height(4.dp))
-        Txt("On the tablet: Settings › Phone control › Pair.", Type.meta, Dash.muted, maxLines = 2)
+        Txt("On the tablet: Settings › Remote control › Pair.", Type.meta, Dash.muted, maxLines = 2)
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextInput(code, { code = it }, "6-digit code", 6, Modifier.width(180.dp), numeric = true)

@@ -2,7 +2,7 @@
 
 ## 1.1.0
 
-- **Phone control:** change the tablet from a phone running Deskdash on the same Wi-Fi: move, resize, add and remove tiles, change any tile's settings, write notes and to-dos, switch presets, add and remove important dates, and set the alarm. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Phone control). Off until you turn it on.
+- **Remote control:** change the tablet from a phone running Deskdash on the same Wi-Fi: move, resize, add and remove tiles, change any tile's settings, write notes and to-dos, switch presets, add and remove important dates, and set the alarm. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Remote control). Off until you turn it on.
 - **Google Tasks:** a Checklist tile can show one of your Google Tasks lists; ticking and adding items saves to Google.
 - **Screensaver:** Deskdash can be Android's screensaver: the dashboard, view-only, while charging (Settings › Display & power).
 - **Backup:** export and import presets, layouts, settings, the alarm, important dates and iCal links as one file (Settings › Backup).
