@@ -64,7 +64,7 @@ fun SettingRow(
             Spacer(Modifier.width(14.dp))
         }
         Column(Modifier.weight(1f)) {
-            Txt(title, Type.body, Dash.ink)
+            Txt(title, Type.body, Dash.ink, maxLines = 2)
             if (hint != null) {
                 Spacer(Modifier.height(2.dp))
                 Txt(hint, Type.meta, Dash.muted, maxLines = 3)

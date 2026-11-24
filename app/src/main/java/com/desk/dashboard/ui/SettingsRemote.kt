@@ -122,7 +122,14 @@ internal fun RemotePage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     // This device's own announcement is only useful for testing on one device.
     val own = if (enabled) Protocol.hostId(RemoteHost.fingerprint) else null
     val others = found.filter { BuildConfig.DEBUG || it.id == null || it.id != own }
+    val primary by RemoteMode.primary.collectAsStateWithLifecycle()
     Section("Control another device") {
+        SwitchRow(
+            "Use this device primarily as a remote for your tablet",
+            "Opens straight onto your tablet instead of this device's dashboard. Turn it off from the remote screen.",
+            primary,
+        ) { RemoteMode.setPrimary(context, !primary) }
+        RowDivider()
         if (others.isEmpty()) {
             Txt(
                 "Looking for tablets on this Wi-Fi… On the tablet, turn on Edit from another device. Both need to be on the same " +
@@ -152,8 +159,9 @@ private sealed interface RemoteScreen {
  * [RemoteContext], so the app's usual screens read and change the tablet.
  */
 @Composable
-fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
+fun RemoteShell(target: RemoteMode.Target, primary: Boolean) {
     val context = LocalContext.current
+    val onExit = { RemoteMode.leave(context) }
     var tablet by remember(target) { mutableStateOf(RemoteMode.lastSeen?.takeIf { RemoteMode.matches(target, it) }) }
     val t = tablet
     if (t == null) {
@@ -166,7 +174,7 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
         val found by discovery.found.collectAsStateWithLifecycle()
         LaunchedEffect(found) { found.firstOrNull { RemoteMode.matches(target, it) }?.let { RemoteMode.lastSeen = it; tablet = it } }
         Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap)) {
-            ShellBar(target.name, "Looking for it on this Wi-Fi…", onSettings = null, onExit)
+            ShellBar(target.name, "Looking for it on this Wi-Fi…", onSettings = null, primary)
             Spacer(Modifier.height(Dash.gap))
             Message("Make sure ${target.name} is on, on the same Wi-Fi, and has Edit from another device turned on (Settings › Remote control).") {}
         }
@@ -209,7 +217,7 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
                 is RemoteScreen.Settings -> SettingsScreen(sc.section, onDone = { screen = RemoteScreen.Home })
                 RemoteScreen.Home -> if (ready != null) RemoteDashboard(
                     session, ready.board, editing, { editing = it },
-                    top = { ShellBar(t.name, null, onSettings = { screen = RemoteScreen.Settings(null) }, onExit) },
+                    top = { ShellBar(t.name, null, onSettings = { screen = RemoteScreen.Settings(null) }, primary) },
                 ) { sheet = it } else Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap)) {
                     ShellBar(
                         t.name,
@@ -220,7 +228,7 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
                             is RemoteSession.State.Failed -> "Not connected"
                         },
                         onSettings = if (ready != null) ({ screen = RemoteScreen.Settings(null) }) else null,
-                        onExit = onExit,
+                        primary = primary,
                     )
                     Spacer(Modifier.height(Dash.gap))
                     when (val s = state) {
@@ -245,7 +253,8 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
 
 /** Top of remote control: which tablet, how it's going, its settings, and leaving remote control. */
 @Composable
-private fun ShellBar(name: String, status: String?, onSettings: (() -> Unit)?, onExit: () -> Unit) {
+private fun ShellBar(name: String, status: String?, onSettings: (() -> Unit)?, primary: Boolean) {
+    val context = LocalContext.current
     Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Txt(name, Type.secondary, Dash.ink)
@@ -255,7 +264,54 @@ private fun ShellBar(name: String, status: String?, onSettings: (() -> Unit)?, o
             OutlineButton("Settings", DashIcons.gear, onSettings)
             HSpace(10.dp)
         }
-        OutlineButton("Exit remote", DashIcons.close, onExit)
+        if (!primary) OutlineButton("Exit remote", DashIcons.close) { RemoteMode.leave(context) }
+        else {
+            // A dedicated remote: switch tablets (when there's a choice), or stop being a remote.
+            if (remember { Pairings.all(context).size } > 1) {
+                OutlineButton("Tablets", DashIcons.grid) { RemoteMode.leave(context) }
+                HSpace(10.dp)
+            }
+            OutlineButton("Turn off remote mode", DashIcons.close) { RemoteMode.setPrimary(context, false) }
+        }
+    }
+}
+
+/** A dedicated remote with no tablet open: the paired tablets to choose from, and others to pair. */
+@Composable
+fun RemotePicker() {
+    val context = LocalContext.current
+    val discovery = remember { Discovery(context) }
+    DisposableEffect(Unit) {
+        discovery.start()
+        onDispose { discovery.stop() }
+    }
+    val found by discovery.found.collectAsStateWithLifecycle()
+    val paired = remember { Pairings.all(context) }
+    val others = found.filter { f -> paired.none { it.id == f.id } && f.id != RemoteHost.fingerprint.let(Protocol::hostId).takeIf { RemoteHost.enabled.value } }
+    Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
+        Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Txt("Your tablets", Type.secondary, Dash.ink, Modifier.weight(1f))
+            OutlineButton("Turn off remote mode", DashIcons.close) { RemoteMode.setPrimary(context, false) }
+        }
+        if (paired.isNotEmpty()) Section("Paired") {
+            paired.forEachIndexed { i, p ->
+                if (i > 0) RowDivider()
+                val here = found.firstOrNull { it.id == p.id }
+                NavRow(p.name, if (here != null) "On this Wi-Fi" else "Not found yet", icon = DashIcons.phone) {
+                    if (here != null) RemoteMode.start(context, here) else RemoteMode.open(context, p)
+                }
+            }
+        }
+        Section(if (paired.isEmpty()) "Tablets on this Wi-Fi" else "Pair another tablet") {
+            if (others.isEmpty()) Txt(
+                "Looking for tablets on this Wi-Fi… On the tablet, turn on Edit from another device in Settings › Remote control.",
+                Type.meta, Dash.muted, maxLines = 3,
+            )
+            others.forEachIndexed { i, t ->
+                if (i > 0) RowDivider()
+                NavRow(t.name, "Pair", icon = DashIcons.phone) { RemoteMode.start(context, t) }
+            }
+        }
     }
 }
 

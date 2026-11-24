@@ -170,10 +170,14 @@ class MainActivity : ComponentActivity() {
             ) {
                 val c = cfg
                 val remoteTarget by com.desk.dashboard.remote.RemoteMode.target.collectAsStateWithLifecycle()
+                val remotePrimary by com.desk.dashboard.remote.RemoteMode.primary.collectAsStateWithLifecycle()
                 val rt = remoteTarget
                 if (rt != null) {
                     // This phone is a tablet's remote control: its screens show the tablet instead.
-                    com.desk.dashboard.ui.RemoteShell(rt, onExit = { com.desk.dashboard.remote.RemoteMode.stop(activity) })
+                    com.desk.dashboard.ui.RemoteShell(rt, remotePrimary)
+                } else if (remotePrimary) {
+                    // A dedicated remote with several tablets (or none yet): choose one.
+                    com.desk.dashboard.ui.RemotePicker()
                 } else if (c != null && !c.onboarded) {
                     OnboardingScreen(onDone = { lifecycleScope.launch { DisplaySettings.setOnboarded(activity) } })
                 } else {

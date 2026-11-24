@@ -21,9 +21,42 @@ object RemoteMode {
 
     private fun sp(c: Context) = c.getSharedPreferences("remote_client", Context.MODE_PRIVATE)
 
+    private val _primary = MutableStateFlow(false)
+    /** "Use this device primarily as a remote": the app opens on the tablets, not its own dashboard. */
+    val primary: StateFlow<Boolean> = _primary
+
     fun init(c: Context) {
         _target.value = sp(c).getString("controlling", null)?.split('\t')?.takeIf { it.size == 2 }
             ?.let { Target(it[0].ifEmpty { null }, it[1]) }
+        _primary.value = sp(c).getBoolean("primary", false)
+        // As a dedicated remote: straight to the only tablet, or a choice when there are several.
+        if (_primary.value) openDefault(c)
+    }
+
+    private fun openDefault(c: Context) {
+        val paired = Pairings.all(c)
+        _target.value = paired.singleOrNull()?.let { Target(it.id, it.name) }
+    }
+
+    fun setPrimary(c: Context, on: Boolean) {
+        sp(c).edit().putBoolean("primary", on).apply()
+        _primary.value = on
+        if (on) openDefault(c) else stop(c)
+    }
+
+    /** Back to the list of tablets (as a dedicated remote), or out of remote control. */
+    fun leave(c: Context) {
+        if (_primary.value) {
+            sp(c).edit().remove("controlling").apply()
+            _target.value = null
+        } else stop(c)
+    }
+
+    /** Opens a paired tablet that hasn't been seen on the network yet this session. */
+    fun open(c: Context, p: Pairings.Pairing) {
+        lastSeen = null
+        sp(c).edit().putString("controlling", "${p.id}\t${p.name}").apply()
+        _target.value = Target(p.id, p.name)
     }
 
     fun start(c: Context, t: FoundTablet) {

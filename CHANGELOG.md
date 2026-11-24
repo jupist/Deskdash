@@ -2,7 +2,7 @@
 
 ## 1.1.0
 
-- **Remote control:** a phone running Deskdash on the same Wi-Fi becomes the tablet's remote. Its whole app shows and changes the tablet until you exit: the dashboard (move, resize, add and remove tiles, notes and to-dos), and the tablet's settings for appearance, dashboard and presets, important dates, weather, alarm and night mode. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Remote control). Off until you turn it on.
+- **Remote control:** a phone running Deskdash on the same Wi-Fi becomes the tablet's remote. Its whole app shows and changes the tablet until you exit: the dashboard (move, resize, add and remove tiles, notes and to-dos), and the tablet's settings for appearance, dashboard and presets, important dates, weather, alarm and night mode. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Remote control). Off until you turn it on. A phone can also be set to work primarily as a remote: it then opens straight onto your tablet (or a list, with several), until you turn remote mode off.
 - **Google Tasks:** a Checklist tile can show one of your Google Tasks lists; ticking and adding items saves to Google.
 - **Screensaver:** Deskdash can be Android's screensaver: the dashboard, view-only, while charging (Settings › Display & power).
 - **Backup:** export and import presets, layouts, settings, the alarm, important dates and iCal links as one file (Settings › Backup).

@@ -92,12 +92,19 @@ class Discovery(context: Context) {
 
 /** Tablets this phone has paired with: tablet id → certificate fingerprint and sign-in token. */
 object Pairings {
-    data class Pairing(val fingerprint: String, val token: String)
+    data class Pairing(val id: String, val fingerprint: String, val token: String, val name: String)
 
     private fun sp(c: Context) = c.getSharedPreferences("remote_client", Context.MODE_PRIVATE)
+    /** Pairings are keyed by tablet id (16 hex digits); the file holds a few other settings too. */
+    private val idKey = Regex("[0-9a-f]{16}")
 
-    fun get(c: Context, id: String): Pairing? = sp(c).getString(id, null)?.split('\t')?.takeIf { it.size == 2 }?.let { Pairing(it[0], it[1]) }
-    fun save(c: Context, fingerprint: String, token: String) = sp(c).edit().putString(Protocol.hostId(fingerprint), "$fingerprint\t$token").apply()
+    private fun parse(id: String, v: String?): Pairing? = v?.split('\t')?.takeIf { it.size >= 2 }
+        ?.let { Pairing(id, it[0], it[1], it.getOrNull(2)?.takeIf { n -> n.isNotBlank() } ?: "Tablet") }
+
+    fun get(c: Context, id: String): Pairing? = parse(id, sp(c).getString(id, null))
+    fun all(c: Context): List<Pairing> = sp(c).all.mapNotNull { (k, v) -> if (idKey.matches(k)) parse(k, v as? String) else null }.sortedBy { it.name }
+    fun save(c: Context, fingerprint: String, token: String, name: String) =
+        sp(c).edit().putString(Protocol.hostId(fingerprint), "$fingerprint\t$token\t${name.replace('\t', ' ')}").apply()
     fun forget(c: Context, id: String) = sp(c).edit().remove(id).apply()
 }
 
@@ -234,6 +241,8 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
         }
         features = hello.strings("features").toSet() intersect Protocol.FEATURES.toSet()
         if (pairing == null) { _state.value = State.NeedsCode(); return }
+        // Keep the tablet's name current for the list of paired tablets (it can be renamed).
+        if (pairing.name != tablet.name) Pairings.save(context, pairing.fingerprint, pairing.token, tablet.name)
         signIn(pairing.token)
     }
 
@@ -261,7 +270,7 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
             )
             return@launch
         }
-        Pairings.save(context, c.fingerprint, token)
+        Pairings.save(context, c.fingerprint, token, tablet.name)
         signIn(token)
     }
 
