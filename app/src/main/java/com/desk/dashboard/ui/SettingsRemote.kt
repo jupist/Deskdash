@@ -143,7 +143,6 @@ internal fun RemotePage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
 
 private sealed interface RemoteScreen {
     data object Home : RemoteScreen
-    data object Layout : RemoteScreen
     data class Settings(val section: String?) : RemoteScreen
 }
 
@@ -181,16 +180,22 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
     }
     val remote = remember(session) { RemoteContext(context, session) }
     val state by session.state.collectAsStateWithLifecycle()
+    // Find the tablet afresh: after a restart or update it listens on a new port.
+    val rediscover = { RemoteMode.lastSeen = null; tablet = null }
+    LaunchedEffect(state) {
+        if ((state as? RemoteSession.State.Failed)?.retryable == true) { kotlinx.coroutines.delay(2_000); rediscover() }
+    }
     var screen by remember { mutableStateOf<RemoteScreen>(RemoteScreen.Home) }
     var sheet by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-    BackHandler(enabled = screen == RemoteScreen.Layout && sheet == null) { screen = RemoteScreen.Home }
+    var editing by remember { mutableStateOf(false) }
+    BackHandler(enabled = editing && sheet == null) { editing = false }
     BackHandler(enabled = sheet != null) { sheet = null }
     val actions = remember {
         DashActions(
-            openSettings = { section -> sheet = null; screen = RemoteScreen.Settings(section) },
+            openSettings = { section -> sheet = null; editing = false; screen = RemoteScreen.Settings(section) },
             lock = {},
             openApps = {},
-            editLayout = { sheet = null; screen = RemoteScreen.Layout },
+            editLayout = { sheet = null; screen = RemoteScreen.Home; editing = true },
         )
     }
     CompositionLocalProvider(
@@ -202,14 +207,16 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
             val ready = state as? RemoteSession.State.Ready
             when (val sc = screen) {
                 is RemoteScreen.Settings -> SettingsScreen(sc.section, onDone = { screen = RemoteScreen.Home })
-                RemoteScreen.Layout -> if (ready != null) RemoteLayoutEditor(session, ready.board, onDone = { screen = RemoteScreen.Home }) { sheet = it }
-                RemoteScreen.Home -> Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap)) {
+                RemoteScreen.Home -> if (ready != null) RemoteDashboard(
+                    session, ready.board, editing, { editing = it },
+                    top = { ShellBar(t.name, null, onSettings = { screen = RemoteScreen.Settings(null) }, onExit) },
+                ) { sheet = it } else Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap)) {
                     ShellBar(
                         t.name,
                         when (state) {
                             RemoteSession.State.Connecting -> "Connecting…"
                             is RemoteSession.State.NeedsCode -> "Not paired yet"
-                            is RemoteSession.State.Ready -> "Remote control · changes show on the tablet straight away"
+                            is RemoteSession.State.Ready -> null
                             is RemoteSession.State.Failed -> "Not connected"
                         },
                         onSettings = if (ready != null) ({ screen = RemoteScreen.Settings(null) }) else null,
@@ -220,14 +227,14 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
                         RemoteSession.State.Connecting -> Unit
                         is RemoteSession.State.Failed -> Message(s.message) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                MiniButton("Try again", Dash.ink, Dash.accent) { session.retry() }
+                                MiniButton("Try again", Dash.ink, Dash.accent) { rediscover() }
                                 if (t.id != null && Pairings.get(context, t.id) != null) {
                                     MiniButton("Forget tablet") { Pairings.forget(context, t.id); session.retry() }
                                 }
                             }
                         }
                         is RemoteSession.State.NeedsCode -> CodeEntry(s.error) { session.pair(it) }
-                        is RemoteSession.State.Ready -> RemoteLayout(session, s.board, onEditLayout = { screen = RemoteScreen.Layout }) { sheet = it }
+                        is RemoteSession.State.Ready -> Unit
                     }
                 }
             }
@@ -238,11 +245,11 @@ fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
 
 /** Top of remote control: which tablet, how it's going, its settings, and leaving remote control. */
 @Composable
-private fun ShellBar(name: String, status: String, onSettings: (() -> Unit)?, onExit: () -> Unit) {
+private fun ShellBar(name: String, status: String?, onSettings: (() -> Unit)?, onExit: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Txt(name, Type.secondary, Dash.ink)
-            Txt(status, Type.meta, Dash.muted)
+            if (status != null) Txt(status, Type.meta, Dash.muted)
         }
         if (onSettings != null) {
             OutlineButton("Settings", DashIcons.gear, onSettings)
@@ -299,24 +306,15 @@ private fun RemoteTileSettings(session: RemoteSession, id: String, showSheet: ((
     }
 }
 
+/**
+ * The tablet's dashboard, worked like the tablet's own: tap a tile to change it, long-press one to
+ * rearrange (it's picked up in the same press). While editing, the edit bar replaces [top].
+ */
 @Composable
-private fun RemoteLayout(session: RemoteSession, b: RemoteBoard, onEditLayout: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if ("presets" in b.features && b.presets.size > 1) {
-            Box(Modifier.weight(1f)) { Chips(b.presets, { it.first == b.active }, { it.second }) { session.setActive(it.first) } }
-        } else {
-            Txt("Tap a tile to change it.", Type.meta, Dash.muted, Modifier.weight(1f))
-        }
-        HSpace(8.dp)
-        PrimaryButton("Edit layout", onClick = onEditLayout)
-    }
-    Spacer(Modifier.height(Dash.gap))
-    ScaledBoard(session, b, editing = false, Modifier.fillMaxWidth().fillMaxHeight(), { session.setLayout(it) }, onEditLayout, showSheet)
-}
-
-/** Full screen, like editing the layout on the tablet itself: the edit bar above the tablet's board. */
-@Composable
-private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+private fun RemoteDashboard(
+    session: RemoteSession, b: RemoteBoard, editing: Boolean, onEditing: (Boolean) -> Unit,
+    top: @Composable () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit,
+) {
     val context = LocalContext.current
     val undo = remember { mutableStateListOf<GridLayout>() }
     fun change(new: GridLayout) {
@@ -324,8 +322,8 @@ private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: (
         if (undo.size > 30) undo.removeAt(0)
         session.setLayout(new)
     }
-    Column(Modifier.fillMaxSize().padding(Dash.gap), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
-        EditBar(
+    Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
+        if (!editing) top() else EditBar(
             presetName = b.presets.firstOrNull { it.first == b.active }?.second ?: "Dashboard",
             hidden = emptyList(), onPutBack = {},
             canUndo = undo.isNotEmpty(),
@@ -340,7 +338,7 @@ private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: (
                     }
                 }
             },
-            onDone = onDone,
+            onDone = { onEditing(false); undo.clear() },
             presetMenu = if ("presets" in b.features) { dismiss ->
                 Popup(onDismissRequest = dismiss, properties = PopupProperties(focusable = true)) {
                     Column(Modifier.width(220.dp).clip(Dash.smallShape).background(Dash.tile).border(1.dp, Dash.line, Dash.smallShape)) {
@@ -354,7 +352,8 @@ private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: (
                 }
             } else null,
         )
-        ScaledBoard(session, b, editing = true, Modifier.fillMaxWidth().weight(1f), ::change, {}, showSheet)
+        // One board for both modes, so a long press can enter edit mode and carry on dragging.
+        ScaledBoard(session, b, editing, Modifier.fillMaxWidth().weight(1f), ::change, { onEditing(true) }, showSheet)
     }
 }
 

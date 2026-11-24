@@ -182,7 +182,8 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
         data object Connecting : State
         data class NeedsCode(val error: String? = null) : State
         data class Ready(val board: RemoteBoard) : State
-        data class Failed(val message: String) : State
+        /** [retryable]: the tablet went away (restarted, Wi-Fi blip); finding it again may fix it. */
+        data class Failed(val message: String, val retryable: Boolean = false) : State
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -210,11 +211,13 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
         val c = runCatching {
             Connection.open(tablet, pairing?.fingerprint, onEvent = { msg ->
                 if (msg.str("op") == "changed") scope.launch { load() }
-            }, onClosed = { scope.launch { if (!closed && gen == generation && _state.value !is State.Failed) _state.value = State.Failed("Lost the connection to ${tablet.name}") } })
+            }, onClosed = { scope.launch { if (!closed && gen == generation && _state.value !is State.Failed) _state.value = State.Failed("Lost the connection to ${tablet.name}", retryable = true) } })
         }.getOrElse {
+            val wrongTablet = it is javax.net.ssl.SSLHandshakeException && pairing != null
             _state.value = State.Failed(
-                if (it is javax.net.ssl.SSLHandshakeException && pairing != null) "${tablet.name} isn't the tablet this phone paired with. Forget it and pair again."
-                else "Couldn't reach ${tablet.name}. Check both are on the same Wi-Fi."
+                if (wrongTablet) "${tablet.name} isn't the tablet this phone paired with. Forget it and pair again."
+                else "Couldn't reach ${tablet.name}. Check both are on the same Wi-Fi.",
+                retryable = !wrongTablet,
             )
             return
         }
