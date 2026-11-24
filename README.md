@@ -12,15 +12,21 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-![The Deskdash dashboard: clock, agenda, weather, now playing, countdowns and a checklist](docs/hero.png)
+![The Deskdash dashboard: clock, agenda, weather, now playing, important dates and a checklist](docs/hero.png)
 
 ## Arrange it in seconds
 
 Press and hold any tile, then drag it where you want it; the tiles around it make room. Drag a corner to resize, tap a tile for its settings, and undo any step. Save different arrangements as presets and switch between them.
 
-Or do it from your phone: with Deskdash on both and the same Wi-Fi, pair once with a code and the phone becomes the tablet's remote. Rearrange its tiles, change its theme, weather, alarm and important dates from the couch, then exit to get your phone's own dashboard back. No account or server; the two talk directly over an encrypted connection.
+<p align="center"><img src="docs/edit.gif" alt="Holding the weather tile, moving it into the empty corner and widening the agenda" width="720"></p>
 
-<p align="center"><img src="docs/edit.gif" alt="Moving the weather tile and widening the agenda in edit mode" width="720"></p>
+## Change it from your phone
+
+The tablet sits across the room; your phone is in your hand. Put Deskdash on both, pair once with a six-digit code, and the phone becomes the tablet's remote. It shows the tablet's own dashboard: hold a tile to rearrange, tap one to change it, and open the tablet's settings to switch its theme, weather place, alarm, important dates or night hours. Every change lands on the tablet as you make it.
+
+There's no account and no server. The two find each other on your Wi-Fi and talk directly, over an encrypted connection only paired phones can open. If a phone is mostly a remote, set it to open straight onto the tablet.
+
+<p align="center"><img src="docs/remote.gif" alt="On the phone, holding the weather tile and dropping it lower; the tablet's dashboard rearranges to match" width="760"></p>
 
 ## Make it yours
 
@@ -30,7 +36,7 @@ Five colour themes, each in dark or light (one follows your wallpaper). Three fo
 
 ## At home on any screen
 
-Layouts adapt to phones and tablets in portrait or landscape. After the hours you choose, night mode dims everything down to a large clock with your next alarm and event. Tap the weather for the next 24 hours and the week ahead.
+Layouts adapt to phones and tablets, in landscape or portrait. After the hours you choose, night mode dims everything down to a large clock with your next alarm and event. Tap the weather for the next 24 hours and the week ahead.
 
 ![A phone layout, the night clock and the weather forecast](docs/screens.png)
 
@@ -38,12 +44,12 @@ Layouts adapt to phones and tablets in portrait or landscape. After the hours yo
 
 | | |
 |---|---|
-| **Time** | Clock, world clocks, countdowns to dates you add |
+| **Time** | Clock, world clocks, and the days left until the important dates you add |
 | **Calendar** | One agenda from device calendars, iCal links, `.ics` files and Google Calendar |
 | **Weather** | Current conditions, hourly and 7-day forecast for your location or any place |
 | **Music** | Now playing with art and controls for the music app you choose |
 | **Alarm & timers** | Alarm with repeat days and snooze; timer, stopwatch and focus sessions. They ring over the lock screen and survive reboots. |
-| **Everyday** | Checklist, sticky note, quote of the day, photo frame |
+| **Everyday** | Checklist (its own items or a Google Tasks list), sticky note, quote of the day, photo frame |
 | **Apps** | Favourite apps, recently used apps, app shortcuts |
 | **System** | Battery, storage and network; volume and brightness; ambient rain or noise |
 
@@ -57,8 +63,9 @@ A short setup on first launch covers theme, location, calendars and permissions;
 
 - **Home screen:** set Deskdash as your home app so it's always there. The ⋮⋮⋮ button opens your other apps.
 - **Screensaver:** *Settings › Display & power › Screensaver* shows the dashboard while the device charges.
+- **Remote control:** on the tablet, turn on *Settings › Remote control › Edit from another device* and tap **Pair**. On the phone, the same page lists the tablet; tap it and enter the code. Both need to be on the same Wi-Fi (guest networks usually keep devices apart).
 - **Samsung:** add Deskdash to *Battery › Background usage limits › Never sleeping apps* so alarms aren't delayed.
-- **Google Calendar sign-in** needs an OAuth client in your own build ([setup](docs/GOOGLE_CALENDAR.md)). Device calendars and iCal links work without it.
+- **Google Calendar and Google Tasks sign-in** need an OAuth client in your own build ([setup](docs/GOOGLE_CALENDAR.md)). Device calendars and iCal links work without it.
 
 ## Build
 
