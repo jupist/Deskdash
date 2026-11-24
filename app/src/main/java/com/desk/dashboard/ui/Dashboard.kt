@@ -255,7 +255,11 @@ private fun BatteryStat() {
 }
 
 @Composable
-private fun EditBar(presetName: String, hidden: List<TileSpec>, onPutBack: () -> Unit, canUndo: Boolean, onUndo: () -> Unit, onAdd: () -> Unit, onDone: () -> Unit) {
+internal fun EditBar(
+    presetName: String, hidden: List<TileSpec>, onPutBack: () -> Unit, canUndo: Boolean, onUndo: () -> Unit, onAdd: () -> Unit, onDone: () -> Unit,
+    /** Replaces this device's preset menu (a phone editing a tablet lists the tablet's presets). */
+    presetMenu: (@Composable (onDismiss: () -> Unit) -> Unit)? = null,
+) {
     var menu by remember { mutableStateOf(false) }
     val overlay = LocalOverlay.current
     Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -272,7 +276,8 @@ private fun EditBar(presetName: String, hidden: List<TileSpec>, onPutBack: () ->
                         MiniButton("Put back", Dash.ink, Dash.accent, onPutBack)
                     }
                 }
-                if (menu) PresetMenu(onDismiss = { menu = false }, onRename = { id, name ->
+                if (menu && presetMenu != null) presetMenu { menu = false }
+                else if (menu) PresetMenu(onDismiss = { menu = false }, onRename = { id, name ->
                     menu = false
                     overlay { RenameDialog(name, onSave = { BoardStore.rename(id, it); overlay(null) }) { overlay(null) } }
                 })

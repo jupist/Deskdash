@@ -114,12 +114,12 @@ class MainActivity : ComponentActivity() {
         BackHandler(enabled = overlay == null && editing && screen == Screen.Dashboard) { editing = false }
         BackHandler(enabled = overlay == null && !editing && isHome.value && screen == Screen.Dashboard) {}
 
-        // Orientation: follow the setting (auto by default).
+        // Orientation: follow the setting (landscape until changed, setup included).
         LaunchedEffect(cfg?.orientation) {
             requestedOrientation = when (cfg?.orientation) {
-                "landscape" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 "portrait" -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                else -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                "auto" -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                else -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }
         }
 

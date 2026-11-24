@@ -1,6 +1,13 @@
 package com.desk.dashboard.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import com.desk.dashboard.board.GridLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.rememberScrollState
@@ -66,7 +73,7 @@ internal fun RemotePage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     Section("This device") {
         SwitchRow(
             "Edit from another device",
-            "A phone with Deskdash on the same Wi-Fi can change this dashboard: its layout, tiles, countdowns and alarm. Only phones you pair can connect.",
+            "A phone with Deskdash on the same Wi-Fi can change this dashboard: its layout, tiles, important dates and alarm. Only phones you pair can connect.",
             enabled,
         ) { RemoteHost.setEnabled(!enabled) }
         if (enabled) {
@@ -138,8 +145,31 @@ private fun RemoteEditor(tablet: FoundTablet, onClose: () -> Unit) {
         onDispose { session.close() }
     }
     val state by session.state.collectAsStateWithLifecycle()
+    var sheet by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    var editingLayout by remember { mutableStateOf(false) }
+    BackHandler(enabled = editingLayout && sheet == null) { editingLayout = false }
+    BackHandler(enabled = sheet != null) { sheet = null }
+    // Tiles' own pop-ups (the note editor) open over this screen.
+    CompositionLocalProvider(LocalOverlay provides { sheet = it }) {
+        Box(Modifier.fillMaxSize().background(Dash.frame)) {
+            val ready = state as? RemoteSession.State.Ready
+            if (ready != null && editingLayout) {
+                RemoteLayoutEditor(session, ready.board, onDone = { editingLayout = false }) { sheet = it }
+            } else {
+                RemoteHome(tablet, session, state, onClose, onEditLayout = { editingLayout = true }) { sheet = it }
+            }
+            sheet?.invoke()
+        }
+    }
+}
 
-    Column(Modifier.fillMaxSize().background(Dash.frame).imePadding().padding(Dash.gap)) {
+@Composable
+private fun RemoteHome(
+    tablet: FoundTablet, session: RemoteSession, state: RemoteSession.State, onClose: () -> Unit,
+    onEditLayout: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit,
+) {
+    val context = LocalContext.current
+    Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap)) {
         Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(DashIcons.back, outline = false, onClick = onClose)
             HSpace(8.dp)
@@ -168,37 +198,29 @@ private fun RemoteEditor(tablet: FoundTablet, onClose: () -> Unit) {
                 }
             }
             is RemoteSession.State.NeedsCode -> CodeEntry(s.error) { session.pair(it) }
-            is RemoteSession.State.Ready -> RemoteTabs(session, s.board)
+            is RemoteSession.State.Ready -> RemoteTabs(session, s.board, onEditLayout, showSheet)
         }
     }
 }
 
 /** What a phone can change on the tablet, one tab each; tabs the tablet's version lacks are hidden. */
 @Composable
-private fun RemoteTabs(session: RemoteSession, b: RemoteBoard) {
+private fun RemoteTabs(session: RemoteSession, b: RemoteBoard, onEditLayout: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit) {
     val tabs = buildList {
         add("Layout")
-        if (b.dates != null) add("Countdowns")
+        if (b.dates != null) add("Important dates")
         if (b.alarm != null) add("Alarm")
     }
     var tab by remember { mutableStateOf("Layout") }
-    var sheet by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-    BackHandler(enabled = sheet != null) { sheet = null }
-    // Tiles' own pop-ups (the note editor) open over this screen.
-    CompositionLocalProvider(LocalOverlay provides { sheet = it }) {
-        Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                if (tabs.size > 1) {
-                    Segmented(tabs, tab, { it }) { tab = it }
-                    Spacer(Modifier.height(Dash.gap))
-                }
-                when (tab) {
-                    "Countdowns" -> RemoteCountdowns(session, b.dates.orEmpty()) { sheet = it }
-                    "Alarm" -> b.alarm?.let { RemoteAlarmPanel(session, it) { o -> sheet = o } }
-                    else -> RemoteLayout(session, b) { sheet = it }
-                }
-            }
-            sheet?.invoke()
+    Column(Modifier.fillMaxSize()) {
+        if (tabs.size > 1) {
+            Segmented(tabs, tab, { it }) { tab = it }
+            Spacer(Modifier.height(Dash.gap))
+        }
+        when (tab) {
+            "Important dates" -> RemoteCountdowns(session, b.dates.orEmpty(), showSheet)
+            "Alarm" -> b.alarm?.let { RemoteAlarmPanel(session, it, showSheet) }
+            else -> RemoteLayout(session, b, onEditLayout, showSheet)
         }
     }
 }
@@ -210,65 +232,99 @@ private fun showsLive(t: TileSpec) = when (t.type) {
     else -> false
 }
 
+/** The tablet's board at its real size, scaled to fit: the same layout, just smaller. */
 @Composable
-private fun RemoteLayout(session: RemoteSession, b: RemoteBoard, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    val context = LocalContext.current
-    var editing by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if ("presets" in b.features && b.presets.size > 1) {
-            Box(Modifier.weight(1f)) { Chips(b.presets, { it.first == b.active }, { it.second }) { session.setActive(it.first) } }
-        } else {
-            Txt(
-                if (editing) "Drag to move, drag the corner to resize, tap for settings." else "Tap a tile for its settings; hold one to rearrange.",
-                Type.meta, Dash.muted, Modifier.weight(1f), maxLines = 2,
-            )
-        }
-        HSpace(8.dp)
-        if (editing && "tiles" in b.features) {
-            MiniButton("Add tile", Dash.ink) {
-                showSheet {
-                    ModulePicker(onClose = { showSheet(null) }) { m ->
-                        showSheet(null)
-                        val placed = withNewTile(b.layout, m)
-                        if (placed != null) session.setLayout(placed)
-                        else android.widget.Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-            HSpace(8.dp)
-        }
-        MiniButton(if (editing) "Done" else "Edit layout", Dash.ink, if (editing) Dash.accent else Dash.line) { editing = !editing }
-    }
-    Spacer(Modifier.height(Dash.gap))
-    // The tablet's board at its real size, scaled to fit: the same layout, just smaller.
-    BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight(), contentAlignment = Alignment.Center) {
+private fun ScaledBoard(
+    session: RemoteSession, b: RemoteBoard, editing: Boolean, modifier: Modifier,
+    onChange: (GridLayout) -> Unit, onStartEditing: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit,
+) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val scale = minOf(maxWidth.value / b.widthDp, maxHeight.value / b.heightDp)
         Box(Modifier.requiredSize(b.widthDp.dp, b.heightDp.dp).graphicsLayer { scaleX = scale; scaleY = scale }) {
             BoardView(
                 layout = b.layout,
                 editing = editing,
-                onStartEditing = { editing = true },
-                onChange = { session.setLayout(it) },
-                onTileSettings = { spec ->
-                    if ("tiles" !in b.features) return@BoardView
-                    showSheet {
-                        // Follows the session, so changes made here show in the open panel.
-                        val state by session.state.collectAsStateWithLifecycle()
-                        val current = (state as? RemoteSession.State.Ready)?.board?.layout?.tiles?.firstOrNull { it.id == spec.id }
-                        if (current == null) showSheet(null)
-                        else TileSettingsPanel(current, onClose = { showSheet(null) }, update = { block -> session.updateTile(spec.id, block) }) {
-                            (session.state.value as? RemoteSession.State.Ready)?.board?.layout?.let { l ->
-                                session.setLayout(l.copy(tiles = l.tiles.filter { it.id != spec.id }))
-                            }
-                            showSheet(null)
-                        }
-                    }
-                },
+                onStartEditing = onStartEditing,
+                onChange = onChange,
+                onTileSettings = { spec -> if ("tiles" in b.features) showSheet { RemoteTileSettings(session, spec.id, showSheet) } },
                 onTileConfig = { spec, cfg -> if ("tiles" in b.features) session.updateTile(spec.id) { it.copy(config = cfg) } },
                 modifier = Modifier.fillMaxSize(),
                 live = { "tiles" in b.features && showsLive(it) },
             )
         }
+    }
+}
+
+@Composable
+private fun RemoteTileSettings(session: RemoteSession, id: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+    // Follows the session, so changes made here show in the open panel.
+    val state by session.state.collectAsStateWithLifecycle()
+    val current = (state as? RemoteSession.State.Ready)?.board?.layout?.tiles?.firstOrNull { it.id == id }
+    if (current == null) { showSheet(null); return }
+    TileSettingsPanel(current, onClose = { showSheet(null) }, update = { block -> session.updateTile(id, block) }) {
+        (session.state.value as? RemoteSession.State.Ready)?.board?.layout?.let { l ->
+            session.setLayout(l.copy(tiles = l.tiles.filter { it.id != id }))
+        }
+        showSheet(null)
+    }
+}
+
+@Composable
+private fun RemoteLayout(session: RemoteSession, b: RemoteBoard, onEditLayout: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if ("presets" in b.features && b.presets.size > 1) {
+            Box(Modifier.weight(1f)) { Chips(b.presets, { it.first == b.active }, { it.second }) { session.setActive(it.first) } }
+        } else {
+            Txt("Tap a tile for its settings.", Type.meta, Dash.muted, Modifier.weight(1f))
+        }
+        HSpace(8.dp)
+        PrimaryButton("Edit layout", onClick = onEditLayout)
+    }
+    Spacer(Modifier.height(Dash.gap))
+    ScaledBoard(session, b, editing = false, Modifier.fillMaxWidth().fillMaxHeight(), { session.setLayout(it) }, onEditLayout, showSheet)
+}
+
+/** Full screen, like editing the layout on the tablet itself: the edit bar above the tablet's board. */
+@Composable
+private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit) {
+    val context = LocalContext.current
+    val undo = remember { mutableStateListOf<GridLayout>() }
+    fun change(new: GridLayout) {
+        undo += b.layout
+        if (undo.size > 30) undo.removeAt(0)
+        session.setLayout(new)
+    }
+    Column(Modifier.fillMaxSize().padding(Dash.gap), verticalArrangement = Arrangement.spacedBy(Dash.gap)) {
+        EditBar(
+            presetName = b.presets.firstOrNull { it.first == b.active }?.second ?: "Dashboard",
+            hidden = emptyList(), onPutBack = {},
+            canUndo = undo.isNotEmpty(),
+            onUndo = { undo.removeLastOrNull()?.let { session.setLayout(it) } },
+            onAdd = {
+                showSheet {
+                    ModulePicker(onClose = { showSheet(null) }) { m ->
+                        showSheet(null)
+                        val placed = withNewTile(b.layout, m)
+                        if (placed != null) change(placed)
+                        else android.widget.Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onDone = onDone,
+            presetMenu = if ("presets" in b.features) { dismiss ->
+                Popup(onDismissRequest = dismiss, properties = PopupProperties(focusable = true)) {
+                    Column(Modifier.width(220.dp).clip(Dash.smallShape).background(Dash.tile).border(1.dp, Dash.line, Dash.smallShape)) {
+                        b.presets.forEach { (id, name) ->
+                            Txt(
+                                name, Type.body, if (id == b.active) Dash.accentText else Dash.ink,
+                                Modifier.fillMaxWidth().clickable { session.setActive(id); undo.clear(); dismiss() }.padding(12.dp),
+                            )
+                        }
+                    }
+                }
+            } else null,
+        )
+        ScaledBoard(session, b, editing = true, Modifier.fillMaxWidth().weight(1f), ::change, {}, showSheet)
     }
 }
 

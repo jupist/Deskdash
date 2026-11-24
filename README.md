@@ -18,7 +18,7 @@
 
 Press and hold any tile, then drag it where you want it; the tiles around it make room. Drag a corner to resize, tap a tile for its settings, and undo any step. Save different arrangements as presets and switch between them.
 
-Or do it from your phone: with Deskdash on both and the same Wi-Fi, pair once with a code, then rearrange the tablet's tiles, change their settings, add countdowns and set the alarm from the couch. No account or server; the two talk directly over an encrypted connection.
+Or do it from your phone: with Deskdash on both and the same Wi-Fi, pair once with a code, then rearrange the tablet's tiles, change their settings, add important dates and set the alarm from the couch. No account or server; the two talk directly over an encrypted connection.
 
 <p align="center"><img src="docs/edit.gif" alt="Moving the weather tile and widening the agenda in edit mode" width="720"></p>
 

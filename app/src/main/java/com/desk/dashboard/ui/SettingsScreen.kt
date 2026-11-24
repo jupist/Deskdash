@@ -57,7 +57,7 @@ private val pages = listOf(
     Page("appearance", "Appearance", DashIcons.palette, "Theme, fonts, corners"),
     Page("dashboard", "Dashboard", DashIcons.grid, "Layout, presets, top bar"),
     Page("calendars", "Calendars", DashIcons.calendar, "Device, iCal links, Google"),
-    Page("countdowns", "Countdowns", DashIcons.flag, "Dates you're counting down to"),
+    Page("countdowns", "Important dates", DashIcons.flag, "Exams, deadlines, trips and more"),
     Page("weather", "Weather", DashIcons.cloud, "Place and units"),
     Page("alarm", "Alarm", DashIcons.bell, "Time, repeat, sound, snooze"),
     Page("night", "Night mode", DashIcons.moon, "Schedule and dim clock"),
@@ -215,8 +215,8 @@ private fun DashboardPage() {
         if (!c.topBar) Txt("Without the bar, open settings and edit mode by long-pressing a tile.", Type.meta, Dash.muted, maxLines = 2)
     }
     Section("Screen") {
-        SettingRow("Orientation") {
-            Segmented(listOf("auto", "landscape", "portrait"), c.orientation, { it.replaceFirstChar(Char::uppercase) }) { o ->
+        SettingRow("Orientation", "Auto turns with the device") {
+            Segmented(listOf("landscape", "portrait", "auto"), c.orientation, { it.replaceFirstChar(Char::uppercase) }) { o ->
                 scope.launch { DisplaySettings.setOrientation(context, o) }
             }
         }
@@ -289,7 +289,7 @@ private fun BackupPage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
             Overlay(onDismiss = { showOverlay(null) }, width = 460.dp) {
                 PanelHeader("Replace your setup?", { showOverlay(null) })
                 Txt(
-                    "Your presets and layouts, settings and alarm are replaced with the backup's. Countdowns and iCal links " +
+                    "Your presets and layouts, settings and alarm are replaced with the backup's. Important dates and iCal links " +
                         "from the backup are added to yours.",
                     Type.body, Dash.muted, maxLines = 4,
                 )
@@ -305,7 +305,7 @@ private fun BackupPage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     Section(null) {
         Txt(
             "Saves your presets and layouts, appearance, dashboard, night and display settings, weather place, calendar " +
-                "choices, alarm, countdowns and iCal links to one file. Use it to move to a new device or keep a copy.",
+                "choices, alarm, important dates and iCal links to one file. Use it to move to a new device or keep a copy.",
             Type.meta, Dash.muted, maxLines = 4,
         )
         Spacer(Modifier.height(12.dp))

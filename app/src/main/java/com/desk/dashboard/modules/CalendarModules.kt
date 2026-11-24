@@ -216,7 +216,7 @@ private val trim = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightS
 private val mon = DateTimeFormatter.ofPattern("MMM", Locale.getDefault())
 
 object CountdownModule : Module(
-    "countdown", "Countdowns", "Days left until exams, deadlines and trips you add.",
+    "countdown", "Important dates", "Days left until exams, deadlines and trips you add.",
     DashIcons.flag, Size(6, 2), Size(2, 1),
 ) {
     override fun label(t: TileScope) = t.str("title", "Upcoming")

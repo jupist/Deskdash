@@ -24,8 +24,8 @@ data class DisplayConfig(
     val barBattery: Boolean = true,
     val barSliders: Boolean = true,
     val barLock: Boolean = true,
-    /** "auto", "landscape" or "portrait". */
-    val orientation: String = "auto",
+    /** "landscape" (the default), "portrait" or "auto" (follows the device's rotation). */
+    val orientation: String = "landscape",
     /** Night screen extras. */
     val nightAlarm: Boolean = true,
     val nightEvent: Boolean = true,
@@ -80,7 +80,7 @@ object DisplaySettings {
             barBattery = p[barBattery] ?: true,
             barSliders = p[barSliders] ?: true,
             barLock = p[barLock] ?: true,
-            orientation = p[orientation] ?: "auto",
+            orientation = p[orientation] ?: "landscape",
             nightAlarm = p[nightAlarm] ?: true,
             nightEvent = p[nightEvent] ?: true,
             nightSeconds = p[nightSeconds] ?: false,

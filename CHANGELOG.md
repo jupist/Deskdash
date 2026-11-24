@@ -2,10 +2,10 @@
 
 ## 1.1.0
 
-- **Phone control:** change the tablet from a phone running Deskdash on the same Wi-Fi: move, resize, add and remove tiles, change any tile's settings, write notes and to-dos, switch presets, add and remove countdowns, and set the alarm. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Phone control). Off until you turn it on.
+- **Phone control:** change the tablet from a phone running Deskdash on the same Wi-Fi: move, resize, add and remove tiles, change any tile's settings, write notes and to-dos, switch presets, add and remove important dates, and set the alarm. Pair once with a 6-digit code; the connection is encrypted and needs no account or server (Settings › Phone control). Off until you turn it on.
 - **Google Tasks:** a Checklist tile can show one of your Google Tasks lists; ticking and adding items saves to Google.
 - **Screensaver:** Deskdash can be Android's screensaver: the dashboard, view-only, while charging (Settings › Display & power).
-- **Backup:** export and import presets, layouts, settings, the alarm, countdowns and iCal links as one file (Settings › Backup).
+- **Backup:** export and import presets, layouts, settings, the alarm, important dates and iCal links as one file (Settings › Backup).
 - **Music app choice:** Now playing asks which app it resumes (Spotify, YouTube Music, any player…) instead of assuming Spotify.
 - **New tiles:** Favourite apps and Recent apps (recent needs usage access).
 - **Weather:** use my location; hourly forecast for the next 24 hours; night icons after dark.
@@ -15,6 +15,8 @@
 - Faster start: no blank first frame, including right after an update.
 - Google events are kept offline between restarts.
 - Runs on Android 8.0 and newer (was Android 11).
+- Starts in landscape, setup included; portrait or auto-rotate only if you choose them in Settings › Dashboard.
+- Countdowns are now called Important dates.
 - Weather detail shows wind units, and its forecast columns line up.
 - Layouts carried to another screen size (a phone in landscape, say) keep their arrangement with no gaps, and the top bar fits narrower screens.
 - Settings: the alarm can be turned on from its settings page; matching pickers for units and snooze; theme cards share one row; clearer permission descriptions.
