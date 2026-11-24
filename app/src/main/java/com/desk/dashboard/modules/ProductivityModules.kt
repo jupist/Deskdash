@@ -1,5 +1,15 @@
 package com.desk.dashboard.modules
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import com.desk.dashboard.calendar.GoogleCalendar
+import com.desk.dashboard.calendar.GoogleTasks
+import com.desk.dashboard.ui.Chips
+import com.desk.dashboard.ui.Segmented
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,7 +68,6 @@ import com.desk.dashboard.ui.MiniButton
 import com.desk.dashboard.ui.Overlay
 import com.desk.dashboard.ui.PanelHeader
 import com.desk.dashboard.ui.PrimaryButton
-import com.desk.dashboard.ui.Segmented
 import com.desk.dashboard.ui.SettingRow
 import com.desk.dashboard.ui.SwitchRow
 import com.desk.dashboard.ui.TextInput
@@ -67,7 +76,6 @@ import com.desk.dashboard.ui.Txt
 import com.desk.dashboard.ui.Type
 import com.desk.dashboard.ui.pressable
 import com.desk.dashboard.ui.tc
-import kotlinx.coroutines.delay
 
 private fun clock(ms: Long, tenths: Boolean = false): String {
     val total = ms / 1000
@@ -201,31 +209,64 @@ object TimerModule : Module(
 }
 
 /** Checklist items are stored as "0|text" / "1|text" (done) strings in the tile's settings. */
-private data class Item(val done: Boolean, val text: String)
+private data class Item(val done: Boolean, val text: String, val id: String? = null)
 
 private fun TileScope.items() = strings("items").map { Item(it.startsWith("1|"), it.substringAfter('|')) }
 private fun TileScope.saveItems(list: List<Item>) = set("items", list.map { (if (it.done) "1|" else "0|") + it.text })
 
+/** The Google Tasks list this tile shows, or null for its own items. */
+private fun TileScope.googleList() = strOrNull("gtasks")
+
 object ChecklistModule : Module(
-    "checklist", "Checklist", "A to-do list you tick off right on the tile.",
+    "checklist", "Checklist", "A to-do list you tick off right on the tile, or one of your Google Tasks lists.",
     DashIcons.checklist, Size(3, 3), Size(2, 2),
 ) {
-    override fun label(t: TileScope) = t.str("title", "To do")
+    override fun label(t: TileScope) = t.str("title", t.strOrNull("gtasksName") ?: "To do")
 
     @Composable
     override fun Content(t: TileScope) {
-        val items = t.items()
+        val list = t.googleList()
+        if (list == null) {
+            val items = t.items()
+            ListBody(
+                t, items, status = null,
+                onToggle = { i -> t.saveItems(items.toMutableList().also { it[i] = items[i].copy(done = !items[i].done) }) },
+                onAdd = { text -> t.saveItems(items + Item(false, text)) },
+            )
+        } else if (list.isEmpty()) {
+            ListBody(t, emptyList(), status = "Choose a Google Tasks list in this tile's settings", onToggle = {}, onAdd = {})
+        } else {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            val state = GoogleTasks.lists.collectAsStateWithLifecycle().value[list]
+            // Picks up changes made in the Tasks app or elsewhere.
+            LaunchedEffect(list) {
+                while (true) { GoogleTasks.refresh(context, list); delay(5 * 60_000L) }
+            }
+            val items = state?.tasks.orEmpty().map { Item(it.done, it.title, it.id) }
+            ListBody(
+                t, items,
+                status = state?.error ?: if (state?.tasks == null) "Loading Google Tasks…" else null,
+                onToggle = { i -> items[i].id?.let { id -> scope.launch { GoogleTasks.setDone(context, list, id, !items[i].done) } } },
+                onAdd = { text -> scope.launch { GoogleTasks.add(context, list, text) } },
+            )
+        }
+    }
+
+    @Composable
+    private fun ListBody(t: TileScope, items: List<Item>, status: String?, onToggle: (Int) -> Unit, onAdd: (String) -> Unit) {
         val hideDone = t.bool("hideDone", false)
         val visible = items.withIndex().filter { !hideDone || !it.value.done }
         val left = items.count { !it.done }
         var adding by remember { mutableStateOf(false) }
         Tile(label(t), meta = if (items.isEmpty()) null else "$left left") {
             Spacer(Modifier.height(8.dp))
+            if (status != null) Txt(status, Type.meta, tc.muted, maxLines = 3)
             LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                itemsIndexed(visible, key = { _, it -> it.index }) { _, (i, item) ->
+                itemsIndexed(visible, key = { _, it -> it.value.id ?: it.index }) { _, (i, item) ->
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 36.dp)
-                            .clickable { t.saveItems(items.toMutableList().also { it[i] = item.copy(done = !item.done) }) }
+                            .clickable { onToggle(i) }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -246,7 +287,7 @@ object ChecklistModule : Module(
                 item {
                     if (adding) {
                         AddField(onDone = { text ->
-                            if (text.isNotBlank()) t.saveItems(items + Item(false, text.trim()))
+                            if (text.isNotBlank()) onAdd(text.trim())
                             adding = false
                         })
                     } else {
@@ -288,15 +329,79 @@ object ChecklistModule : Module(
 
     @Composable
     override fun Settings(t: TileScope) {
-        val items = t.items()
-        TitleSetting(t, "To do")
+        val list = t.googleList()
+        TitleSetting(t, t.strOrNull("gtasksName") ?: "To do")
         SwitchRow("Hide finished items", checked = t.bool("hideDone", false), onToggle = { t.set("hideDone", !t.bool("hideDone", false)) })
-        SettingRow("Finished items", "${items.count { it.done }} of ${items.size}") {
-            MiniButton("Clear finished", Dash.ink) { t.saveItems(items.filter { !it.done }) }
+        SettingRow("Items from") {
+            Segmented(listOf(false, true), list != null, { if (it) "Google Tasks" else "This tile" }) { google ->
+                if (!google) t.setAll("gtasks" to null, "gtasksName" to null)
+                else if (list == null) t.set("gtasks", "") // shows the list picker below
+            }
         }
-        items.forEachIndexed { i, item ->
-            SettingRow(item.text) {
-                IconButton(DashIcons.trash, size = 30.dp, iconSize = 13.dp) { t.saveItems(items.filterIndexed { j, _ -> j != i }) }
+        if (list == null) {
+            val items = t.items()
+            SettingRow("Finished items", "${items.count { it.done }} of ${items.size}") {
+                MiniButton("Clear finished", Dash.ink) { t.saveItems(items.filter { !it.done }) }
+            }
+            items.forEachIndexed { i, item ->
+                SettingRow(item.text) {
+                    IconButton(DashIcons.trash, size = 30.dp, iconSize = 13.dp) { t.saveItems(items.filterIndexed { j, _ -> j != i }) }
+                }
+            }
+        } else {
+            GoogleTasksPicker(t, list)
+        }
+    }
+
+    /** Connects Google Tasks (asking for access the first time) and chooses the list. */
+    @Composable
+    private fun GoogleTasksPicker(t: TileScope, list: String) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var lists by remember { mutableStateOf<List<GoogleTasks.TaskList>?>(null) }
+        var status by remember { mutableStateOf<String?>(null) }
+
+        suspend fun load(token: String) {
+            runCatching { GoogleTasks.taskLists(token) }
+                .onSuccess { lists = it; status = if (it.isEmpty()) "No task lists in this Google account" else null }
+                .onFailure { status = it.message }
+        }
+        val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
+            when (val a = GoogleCalendar.fromIntent(context, r.data)) {
+                is GoogleCalendar.Auth.Token -> scope.launch { load(a.token) }
+                is GoogleCalendar.Auth.Failed -> status = a.message
+                is GoogleCalendar.Auth.NeedsConsent -> status = "Access wasn't approved"
+            }
+        }
+        fun connect() {
+            status = "Connecting…"
+            scope.launch {
+                when (val a = GoogleCalendar.authorize(context, GoogleTasks.SCOPE)) {
+                    is GoogleCalendar.Auth.Token -> load(a.token)
+                    is GoogleCalendar.Auth.NeedsConsent -> consent.launch(IntentSenderRequest.Builder(a.intent.intentSender).build())
+                    is GoogleCalendar.Auth.Failed -> status = a.message
+                }
+            }
+        }
+        // Already allowed: list the choices straight away, without a sign-in screen.
+        LaunchedEffect(Unit) {
+            (GoogleCalendar.authorize(context, GoogleTasks.SCOPE) as? GoogleCalendar.Auth.Token)?.let { load(it.token) }
+        }
+
+        val l = lists
+        if (l == null) {
+            SettingRow("Google Tasks", status ?: "Sign in to show one of your task lists") {
+                MiniButton("Connect", Dash.ink, Dash.accent) { connect() }
+            }
+        } else {
+            SettingRow("List", if (list.isEmpty()) "Choose which list this tile shows" else null) {}
+            Chips(l, { it.id == list }, { it.title }) { t.setAll("gtasks" to it.id, "gtasksName" to it.title) }
+            status?.let { Spacer(Modifier.height(8.dp)); Txt(it, Type.meta, Dash.danger, maxLines = 3) }
+            if (list.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                SettingRow("Finished tasks", "Hides them in Google Tasks too") {
+                    MiniButton("Clear finished", Dash.ink) { scope.launch { GoogleTasks.clearDone(context, list) } }
+                }
             }
         }
     }

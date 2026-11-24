@@ -12,6 +12,17 @@ import com.desk.dashboard.BuildConfig
 import com.desk.dashboard.board.BoardStore
 import com.desk.dashboard.board.Grid
 import com.desk.dashboard.board.GridLayout
+import com.desk.dashboard.board.TileSpec
+import com.desk.dashboard.alarm.Alarms
+import com.desk.dashboard.data.Category
+import com.desk.dashboard.data.DashDb
+import com.desk.dashboard.data.UpcomingDate
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.merge
+import kotlinx.serialization.json.JsonPrimitive
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalTime
 import com.desk.dashboard.remote.Protocol.obj
 import com.desk.dashboard.remote.Protocol.str
 import kotlinx.coroutines.CoroutineScope
@@ -236,7 +247,11 @@ object RemoteHost {
                             // Tell the phone whenever the boards change (its own edits included).
                             // Undispatched: subscribe before replying, so no change after sign-in is missed.
                             watch = scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
-                                BoardStore.boards.drop(1).collect { runCatching { send(obj("op" to "changed")) } }
+                                merge(
+                                    BoardStore.boards.drop(1),
+                                    DashDb.get(app).dates().upcoming(LocalDate.now()).drop(1),
+                                    Alarms.config(app).drop(1),
+                                ).collect { runCatching { send(obj("op" to "changed")) } }
                             }
                             obj("ok" to true)
                         }
@@ -290,6 +305,66 @@ object RemoteHost {
                     }
                 }
                 "active" -> { msg.str("preset")?.let { BoardStore.setActive(it) }; obj("ok" to true) }
+                "tile" -> {
+                    val id = msg.str("tile") ?: return@withContext obj("error" to "invalid")
+                    val config = msg["config"] as? JsonObject
+                    val style = msg.str("style")
+                    val update = { t: TileSpec -> t.copy(config = config ?: t.config, style = style ?: t.style) }
+                    // Same as editing on the tablet: if this screen's size isn't saved yet, save it so the change sticks.
+                    val current = BoardStore.layoutFor(b.active, s.cols, s.rows)
+                    if (current.tiles.none { it.id == id }) return@withContext obj("error" to "stale")
+                    if (b.active.layouts[current.key] == null) BoardStore.saveLayout(current.copy(tiles = current.tiles.map { if (it.id == id) update(it) else it }))
+                    BoardStore.updateTileEverywhere(id, update)
+                    obj("ok" to true)
+                }
+                "dates" -> {
+                    val dates = withContext(Dispatchers.IO) { DashDb.get(app).dates().upcoming(LocalDate.now()).first() }
+                    obj("dates" to JsonArray(dates.map {
+                        obj("id" to it.id, "title" to it.title, "date" to it.date.toString(), "time" to it.time?.toString(), "category" to it.category.name)
+                    }))
+                }
+                "date.save" -> {
+                    val date = msg.str("date")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                    val title = msg.str("title")?.trim()?.take(UpcomingDate.TITLE_MAX)
+                    if (date == null || title.isNullOrEmpty()) return@withContext obj("error" to "invalid")
+                    withContext(Dispatchers.IO) {
+                        DashDb.get(app).dates().upsert(
+                            UpcomingDate(
+                                id = msg.str("id")?.toLongOrNull() ?: 0, title = title, date = date,
+                                time = msg.str("time")?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
+                                category = runCatching { Category.valueOf(msg.str("category")!!) }.getOrDefault(Category.OTHER),
+                            )
+                        )
+                    }
+                    obj("ok" to true)
+                }
+                "date.delete" -> {
+                    val id = msg.str("id")?.toLongOrNull() ?: return@withContext obj("error" to "invalid")
+                    withContext(Dispatchers.IO) {
+                        val dao = DashDb.get(app).dates()
+                        dao.upcoming(LocalDate.of(1970, 1, 1)).first().firstOrNull { it.id == id }?.let { dao.delete(it) }
+                    }
+                    obj("ok" to true)
+                }
+                "alarm" -> {
+                    val a = withContext(Dispatchers.IO) { Alarms.config(app).first() }
+                    obj(
+                        "enabled" to a.enabled, "time" to a.time.toString(), "days" to a.days.sorted().map { it.name },
+                        "once" to a.once, "next" to a.next().toString(),
+                    )
+                }
+                "alarm.set" -> {
+                    withContext(Dispatchers.IO) {
+                        msg.str("time")?.let { t -> runCatching { LocalTime.parse(t) }.getOrNull()?.let { Alarms.setTime(app, it) } }
+                        (msg["days"] as? JsonArray)?.let { arr ->
+                            Alarms.setDays(app, arr.mapNotNull { e -> runCatching { DayOfWeek.valueOf((e as JsonPrimitive).content) }.getOrNull() }.toSet())
+                        }
+                        msg.str("once")?.toBooleanStrictOrNull()?.let { Alarms.setOnce(app, it) }
+                        // Last, so turning it on schedules the time and days just set.
+                        msg.str("enabled")?.toBooleanStrictOrNull()?.let { Alarms.setEnabled(app, it) }
+                    }
+                    obj("ok" to true)
+                }
                 else -> obj("error" to "unknown", "op" to op)
             }
         }

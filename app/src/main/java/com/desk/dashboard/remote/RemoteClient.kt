@@ -167,7 +167,14 @@ data class RemoteBoard(
     val widthDp: Float,
     val heightDp: Float,
     val features: Set<String>,
+    /** Null when the tablet doesn't offer them (an older version). */
+    val dates: List<RemoteDate>? = null,
+    val alarm: RemoteAlarm? = null,
 )
+
+data class RemoteDate(val id: Long, val title: String, val date: java.time.LocalDate, val time: java.time.LocalTime?, val category: String)
+
+data class RemoteAlarm(val enabled: Boolean, val time: java.time.LocalTime, val days: Set<java.time.DayOfWeek>, val once: Boolean, val next: java.time.LocalDateTime?)
 
 /** A phone's session with one tablet: connect, pair if needed, then load and edit its board. */
 class RemoteSession(private val context: Context, private val tablet: FoundTablet) {
@@ -257,12 +264,29 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
         }
         val layout = runCatching { Protocol.json.decodeFromJsonElement(GridLayout.serializer(), r["layout"]!!) }.getOrNull() ?: return
         val presets = r["presets"]!!.jsonArray.map { it.jsonObject.let { p -> p.str("id")!! to p.str("name")!! } }
+        val dates = if ("countdowns" in features) runCatching {
+            conn!!.request("dates")["dates"]!!.jsonArray.map { e ->
+                val d = e.jsonObject
+                RemoteDate(
+                    d.str("id")!!.toLong(), d.str("title")!!, java.time.LocalDate.parse(d.str("date")!!),
+                    d.str("time")?.let { java.time.LocalTime.parse(it) }, d.str("category") ?: "OTHER",
+                )
+            }
+        }.getOrNull() else null
+        val alarm = if ("alarm" in features) runCatching {
+            val a = conn!!.request("alarm")
+            RemoteAlarm(
+                a.str("enabled") == "true", java.time.LocalTime.parse(a.str("time")!!),
+                a.strings("days").mapNotNull { runCatching { java.time.DayOfWeek.valueOf(it) }.getOrNull() }.toSet(),
+                a.str("once") == "true", a.str("next")?.let { runCatching { java.time.LocalDateTime.parse(it) }.getOrNull() },
+            )
+        }.getOrNull() else null
         _state.value = State.Ready(
             RemoteBoard(
                 presets, r.str("active")!!, layout,
                 (r["width"] as? JsonPrimitive)?.content?.toFloatOrNull() ?: 800f,
                 (r["height"] as? JsonPrimitive)?.content?.toFloatOrNull() ?: 480f,
-                features,
+                features, dates, alarm,
             )
         )
     }
@@ -276,6 +300,28 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
     }
 
     fun setActive(id: String) = scope.launch { runCatching { conn!!.request("active", "preset" to id) } }
+
+    /** Changes one tile's settings or style; shown straight away, then sent. */
+    fun updateTile(id: String, block: (com.desk.dashboard.board.TileSpec) -> com.desk.dashboard.board.TileSpec) = scope.launch {
+        val s = _state.value as? State.Ready ?: return@launch
+        val old = s.board.layout.tiles.firstOrNull { it.id == id } ?: return@launch
+        val new = block(old)
+        _state.value = State.Ready(s.board.copy(layout = s.board.layout.copy(tiles = s.board.layout.tiles.map { if (it.id == id) new else it })))
+        val r = runCatching { conn!!.request("tile", "tile" to id, "config" to new.config, "style" to new.style) }.getOrNull()
+        if (r?.str("error") != null) load()
+    }
+
+    fun saveDate(id: Long?, title: String, date: java.time.LocalDate, time: java.time.LocalTime?, category: String) = scope.launch {
+        runCatching { conn!!.request("date.save", "id" to id, "title" to title, "date" to date.toString(), "time" to time?.toString(), "category" to category) }
+    }
+
+    fun deleteDate(id: Long) = scope.launch { runCatching { conn!!.request("date.delete", "id" to id) } }
+
+    fun setAlarm(enabled: Boolean? = null, time: java.time.LocalTime? = null, days: Set<java.time.DayOfWeek>? = null) = scope.launch {
+        runCatching {
+            conn!!.request("alarm.set", "enabled" to enabled, "time" to time?.toString(), "days" to days?.sorted()?.map { it.name })
+        }
+    }
 
     fun retry() = scope.launch { conn?.close(); connect() }
 

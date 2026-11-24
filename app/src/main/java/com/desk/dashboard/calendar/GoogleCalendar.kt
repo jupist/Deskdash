@@ -44,7 +44,7 @@ object GoogleCalendar {
     private val json = Json { ignoreUnknownKeys = true }
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
 
-    private fun request() = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(SCOPE))).build()
+    private fun request(scope: String) = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(scope))).build()
 
     sealed interface Auth {
         data class Token(val token: String) : Auth
@@ -54,8 +54,8 @@ object GoogleCalendar {
     }
 
     /** Asks for a token; shows no UI by itself (returns [Auth.NeedsConsent] when approval is needed). */
-    suspend fun authorize(context: Context): Auth = suspendCancellableCoroutine { cont ->
-        Identity.getAuthorizationClient(context).authorize(request())
+    suspend fun authorize(context: Context, scope: String = SCOPE): Auth = suspendCancellableCoroutine { cont ->
+        Identity.getAuthorizationClient(context).authorize(request(scope))
             .addOnSuccessListener { r -> cont.resume(result(r)) }
             .addOnFailureListener { e -> cont.resume(Auth.Failed(explain(e))) }
     }
@@ -70,7 +70,7 @@ object GoogleCalendar {
         else -> Auth.Failed("Google returned no access token")
     }
 
-    private fun explain(e: Throwable): String {
+    internal fun explain(e: Throwable): String {
         val code = (e as? ApiException)?.statusCode
         return when (code) {
             10 -> "This build isn't registered with Google yet (developer error). See docs/GOOGLE_CALENDAR.md, or use an iCal link instead."

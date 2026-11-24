@@ -1,4 +1,4 @@
-# Google Calendar sign-in
+# Google Calendar and Tasks sign-in
 
 Deskdash can read Google Calendar three ways:
 
@@ -9,8 +9,8 @@ Deskdash can read Google Calendar three ways:
 ## Setting up sign-in
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (or pick one).
-2. *APIs & Services › Library*: enable **Google Calendar API**.
-3. *APIs & Services › OAuth consent screen*: choose **External**, fill in the app name and your email, add the scope `.../auth/calendar.readonly`, and add yourself under **Test users**. A testing-mode app works for up to 100 test users without Google's verification.
+2. *APIs & Services › Library*: enable **Google Calendar API**, and **Google Tasks API** for Checklist tiles that show a Google Tasks list.
+3. *APIs & Services › OAuth consent screen*: choose **External**, fill in the app name and your email, add the scopes `.../auth/calendar.readonly` and `.../auth/tasks`, and add yourself under **Test users**. A testing-mode app works for up to 100 test users without Google's verification.
 4. *APIs & Services › Credentials › Create credentials › OAuth client ID*: type **Android**, package name `com.desk.dashboard`, and the **SHA-1** of the key that signs your APK:
 
    ```bash
@@ -22,3 +22,7 @@ Deskdash can read Google Calendar three ways:
 There's nothing to paste into the app: Google matches the client by package name and signing certificate. Install the build, then *Settings › Calendars › Connect Google account*.
 
 If sign-in says *"This build isn't registered with Google yet (developer error)"*, the package name or SHA-1 doesn't match the client in step 4.
+
+## Google Tasks
+
+A Checklist tile can show one of your Google Tasks lists instead of its own items: in the tile's settings, set *Items from* to **Google Tasks**, connect, and pick a list. Ticking and adding items saves to Google, and changes made in the Tasks app show up within five minutes. It uses the same OAuth client as above, with the Tasks API turned on.

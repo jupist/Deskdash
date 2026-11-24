@@ -156,7 +156,20 @@ private fun updateTile(id: String, block: (TileSpec) -> TileSpec) {
 
 private fun addTile(context: android.content.Context, m: Module, undo: MutableList<GridLayout>) {
     val layout = CurrentGrid.value ?: return
-    // Default size if it fits, else the largest size (by area) between default and minimum that does.
+    val placed = withNewTile(layout, m)
+    if (placed == null) {
+        Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", Toast.LENGTH_LONG).show()
+        return
+    }
+    undo += layout
+    BoardStore.saveLayout(placed)
+}
+
+/**
+ * [layout] with a new [m] tile: its default size if that fits, else the largest size (by area)
+ * between default and minimum that does. Null when there's no room.
+ */
+internal fun withNewTile(layout: GridLayout, m: Module): GridLayout? {
     val dw = m.defaultSize.w.coerceAtMost(layout.cols)
     val dh = m.defaultSize.h.coerceAtMost(layout.rows)
     val sizes = (m.minSize.w..dw).flatMap { w -> (m.minSize.h..dh).map { h -> com.desk.dashboard.board.Size(w, h) } }
@@ -172,11 +185,9 @@ private fun addTile(context: android.content.Context, m: Module, undo: MutableLi
             }
         })
         val tile = TileSpec(BoardStore.newId(), m.type, spot.first, spot.second, s.w, s.h, m.defaultStyle.name, cfg)
-        undo += layout
-        BoardStore.saveLayout(layout.copy(tiles = layout.tiles + tile))
-        return
+        return layout.copy(tiles = layout.tiles + tile)
     }
-    Toast.makeText(context, "No room for ${m.name}: shrink or remove a tile first", Toast.LENGTH_LONG).show()
+    return null
 }
 
 /** Places tiles that didn't fit this screen: at their size if possible, else their minimum. */
@@ -325,7 +336,7 @@ private fun RenameDialog(initial: String, onSave: (String) -> Unit, onClose: () 
 
 /** Grid of every module: tap one to add it to the first free space. */
 @Composable
-private fun ModulePicker(onClose: () -> Unit, onPick: (Module) -> Unit) {
+internal fun ModulePicker(onClose: () -> Unit, onPick: (Module) -> Unit) {
     Overlay(onDismiss = onClose, width = 720.dp) {
         PanelHeader("Add a tile", onClose)
         LazyVerticalGrid(
@@ -351,21 +362,36 @@ private fun ModulePicker(onClose: () -> Unit, onPick: (Module) -> Unit) {
     }
 }
 
-/** A tile's settings: look, label, its module's own options, and remove. */
+/** A tile's settings on this device. */
 @Composable
 private fun TileSettingsSheet(id: String, onClose: () -> Unit, undo: MutableList<GridLayout>) {
     val boards by BoardStore.boards.collectAsStateWithLifecycle()
     val spec = boards?.active?.layouts?.values?.firstNotNullOfOrNull { l -> l.tiles.firstOrNull { it.id == id } }
         ?: CurrentGrid.value?.tiles?.firstOrNull { it.id == id } ?: return
+    TileSettingsPanel(spec, onClose, update = { block -> updateTile(id, block) }) {
+        CurrentGrid.value?.let { l ->
+            undo += l
+            BoardStore.saveLayout(l.copy(tiles = l.tiles.filter { it.id != id }))
+        }
+        onClose()
+    }
+}
+
+/**
+ * A tile's settings: look, label, its module's own options, and remove. [update] applies a
+ * change to the tile, here or on a tablet being edited from a phone.
+ */
+@Composable
+internal fun TileSettingsPanel(spec: TileSpec, onClose: () -> Unit, update: ((TileSpec) -> TileSpec) -> Unit, onRemove: () -> Unit) {
     val module = Modules.get(spec.type) ?: return
-    val scope = TileScope(spec) { cfg -> updateTile(id) { it.copy(config = cfg) } }
+    val scope = TileScope(spec) { cfg -> update { it.copy(config = cfg) } }
     val labelShown = (spec.config["showLabel"] as? JsonPrimitive)?.content != "false"
     Overlay(onDismiss = onClose, width = 560.dp) {
         PanelHeader(module.name, onClose)
         Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
             SettingRow("Style") {
                 Segmented(TileStyle.entries, runCatching { TileStyle.valueOf(spec.style) }.getOrDefault(TileStyle.PLAIN), { it.label }) { s ->
-                    updateTile(id) { it.copy(style = s.name) }
+                    update { it.copy(style = s.name) }
                 }
             }
             SwitchRow("Show label", "The small caption at the top of the tile", checked = labelShown, onToggle = { scope.set("showLabel", !labelShown) })
@@ -375,13 +401,7 @@ private fun TileSettingsSheet(id: String, onClose: () -> Unit, undo: MutableList
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("${spec.w} × ${spec.h} cells · drag the corner to resize", Type.meta, Dash.muted, Modifier.weight(1f))
-            MiniButton("Remove tile", Dash.danger, Dash.danger) {
-                CurrentGrid.value?.let { l ->
-                    undo += l
-                    BoardStore.saveLayout(l.copy(tiles = l.tiles.filter { it.id != id }))
-                }
-                onClose()
-            }
+            MiniButton("Remove tile", Dash.danger, Dash.danger, onRemove)
         }
     }
 }

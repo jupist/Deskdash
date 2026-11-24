@@ -88,6 +88,11 @@ fun BoardView(
     onTileSettings: (TileSpec) -> Unit,
     onTileConfig: (TileSpec, kotlinx.serialization.json.JsonObject) -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Which tiles show their real content. The others show their name and open their settings
+     * on a tap: a phone editing a tablet can't show the tablet's alarm or weather, only its own.
+     */
+    live: (TileSpec) -> Boolean = { true },
 ) {
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
@@ -239,7 +244,16 @@ fun BoardView(
                     LocalTileSize provides with(density) { androidx.compose.ui.unit.DpSize(targetSize.width.toDp(), targetSize.height.toDp()) },
                     LocalShowLabel provides spec.config.let { (it["showLabel"] as? kotlinx.serialization.json.JsonPrimitive)?.content != "false" },
                 ) {
-                    if (module != null) {
+                    if (module != null && !live(spec)) {
+                        Box(Modifier.fillMaxSize().pointerInput(spec.id) { detectTapGestures { onTileSettings(spec) } }, contentAlignment = Alignment.Center) {
+                            // In edit mode the edit chrome names the tile instead.
+                            if (!editing) androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(module.icon, colors.muted, 22.dp)
+                                androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
+                                Txt(module.label(remember(spec) { TileScope(spec) {} }), Type.meta, colors.muted)
+                            }
+                        }
+                    } else if (module != null) {
                         val scope = remember(spec) { TileScope(spec) { cfg -> onTileConfig(spec, cfg) } }
                         module.Content(scope)
                     } else {
