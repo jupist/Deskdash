@@ -1,5 +1,6 @@
 package com.desk.dashboard.modules
 
+import com.desk.dashboard.remote.isRemote
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -84,7 +85,7 @@ object AlarmModule : Module(
         val ink = if (c.enabled) tc.ink else tc.muted
         val toggle = {
             val on = !c.enabled
-            if (on) ensureAlarmPermissions(context) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+            if (on && !context.isRemote) ensureAlarmPermissions(context) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
             scope.launch { Alarms.setEnabled(context, on) }
             Unit
         }

@@ -1,5 +1,6 @@
 package com.desk.dashboard.ui
 
+import com.desk.dashboard.remote.findActivity
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -144,7 +145,7 @@ private fun AddLinkDialog(onClose: () -> Unit) {
 @Composable
 internal fun GoogleSection() {
     val context = LocalContext.current
-    val activity = context as Activity
+    val activity = context.findActivity()
     val scope = rememberCoroutineScope()
     val sources by CalendarHub.sources.collectAsStateWithLifecycle()
     val g = sources.google

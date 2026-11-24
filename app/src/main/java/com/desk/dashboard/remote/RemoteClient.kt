@@ -172,7 +172,7 @@ data class RemoteBoard(
     val alarm: RemoteAlarm? = null,
 )
 
-data class RemoteDate(val id: Long, val title: String, val date: java.time.LocalDate, val time: java.time.LocalTime?, val category: String)
+data class RemoteDate(val id: Long, val title: String, val date: java.time.LocalDate, val time: java.time.LocalTime?, val category: String, val note: String? = null)
 
 data class RemoteAlarm(val enabled: Boolean, val time: java.time.LocalTime, val days: Set<java.time.DayOfWeek>, val once: Boolean, val next: java.time.LocalDateTime?)
 
@@ -187,6 +187,13 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val _state = MutableStateFlow<State>(State.Connecting)
+
+    /** The tablet's settings and alarm stores, mirrored here; screens use them through [RemoteContext]. */
+    val settings = RemoteStore("settings", ::sendPrefs)
+    val alarm = RemoteStore("alarm", ::sendPrefs)
+    val dates = RemoteDatesDao(this)
+    private val _dates = MutableStateFlow<List<com.desk.dashboard.data.UpcomingDate>>(emptyList())
+    val datesFlow: StateFlow<List<com.desk.dashboard.data.UpcomingDate>> = _dates
     val state: StateFlow<State> = _state
     private var conn: Connection? = null
     private var features = emptySet<String>()
@@ -264,15 +271,27 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
         }
         val layout = runCatching { Protocol.json.decodeFromJsonElement(GridLayout.serializer(), r["layout"]!!) }.getOrNull() ?: return
         val presets = r["presets"]!!.jsonArray.map { it.jsonObject.let { p -> p.str("id")!! to p.str("name")!! } }
+        if ("prefs" in features) {
+            runCatching { (conn!!.request("prefs.get", "store" to "settings")["values"] as? JsonObject)?.let(settings::load) }
+            runCatching { (conn!!.request("prefs.get", "store" to "alarm")["values"] as? JsonObject)?.let(alarm::load) }
+        }
         val dates = if ("countdowns" in features) runCatching {
             conn!!.request("dates")["dates"]!!.jsonArray.map { e ->
                 val d = e.jsonObject
                 RemoteDate(
                     d.str("id")!!.toLong(), d.str("title")!!, java.time.LocalDate.parse(d.str("date")!!),
-                    d.str("time")?.let { java.time.LocalTime.parse(it) }, d.str("category") ?: "OTHER",
+                    d.str("time")?.let { java.time.LocalTime.parse(it) }, d.str("category") ?: "OTHER", d.str("note"),
                 )
             }
         }.getOrNull() else null
+        dates?.let { list ->
+            _dates.value = list.map {
+                com.desk.dashboard.data.UpcomingDate(
+                    it.id, it.title, it.date, it.time,
+                    runCatching { com.desk.dashboard.data.Category.valueOf(it.category) }.getOrDefault(com.desk.dashboard.data.Category.OTHER), it.note,
+                )
+            }
+        }
         val alarm = if ("alarm" in features) runCatching {
             val a = conn!!.request("alarm")
             RemoteAlarm(
@@ -316,6 +335,24 @@ class RemoteSession(private val context: Context, private val tablet: FoundTable
     }
 
     fun deleteDate(id: Long) = scope.launch { runCatching { conn!!.request("date.delete", "id" to id) } }
+
+    suspend fun saveDateNow(d: com.desk.dashboard.data.UpcomingDate) {
+        runCatching {
+            conn!!.request(
+                "date.save", "id" to d.id.takeIf { it != 0L }, "title" to d.title, "date" to d.date.toString(),
+                "time" to d.time?.toString(), "category" to d.category.name, "note" to d.note,
+            )
+        }
+    }
+
+    suspend fun deleteDateNow(id: Long) {
+        _dates.value = _dates.value.filter { it.id != id }
+        runCatching { conn!!.request("date.delete", "id" to id) }
+    }
+
+    private suspend fun sendPrefs(store: String, set: JsonObject, remove: List<String>) {
+        runCatching { conn!!.request("prefs.set", "store" to store, "set" to set, "remove" to remove) }
+    }
 
     fun setAlarm(enabled: Boolean? = null, time: java.time.LocalTime? = null, days: Set<java.time.DayOfWeek>? = null) = scope.launch {
         runCatching {

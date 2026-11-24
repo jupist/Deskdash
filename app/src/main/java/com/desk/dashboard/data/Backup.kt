@@ -62,10 +62,13 @@ object Backup {
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true; encodeDefaults = true }
 
     /** Caches and per-device state that shouldn't move between devices. */
-    private val skip = setOf("weather_cache", "weather_cached_at", "weather_cache_for", "battery_prompted", "font_stamp")
+    internal val skip = setOf("weather_cache", "weather_cached_at", "weather_cache_for", "battery_prompted", "font_stamp")
 
-    private suspend fun dump(store: DataStore<Preferences>): JsonObject = JsonObject(
-        store.data.first().asMap().filterKeys { it.name !in skip }.mapNotNull { (k, v) ->
+    internal suspend fun dump(store: DataStore<Preferences>): JsonObject = encode(store.data.first().asMap())
+
+    /** Settings values as JSON, each tagged with its type (caches and per-device keys left out). */
+    internal fun encode(values: Map<Preferences.Key<*>, Any>): JsonObject = JsonObject(
+        values.filterKeys { it.name !in skip }.mapNotNull { (k, v) ->
             val e: JsonElement = when (v) {
                 is String -> JsonObject(mapOf("s" to JsonPrimitive(v)))
                 is Boolean -> JsonObject(mapOf("b" to JsonPrimitive(v)))
@@ -80,7 +83,7 @@ object Backup {
         }.toMap()
     )
 
-    private fun restoreInto(p: MutablePreferences, values: JsonObject) {
+    internal fun restoreInto(p: MutablePreferences, values: JsonObject) {
         for ((name, e) in values) {
             if (name in skip) continue
             val (type, v) = e.jsonObject.entries.firstOrNull() ?: continue

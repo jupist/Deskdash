@@ -9,8 +9,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 
-/** All non-Room settings. */
-val Context.prefs: DataStore<Preferences> by preferencesDataStore(name = "settings")
+private val Context.localPrefs: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+/** All non-Room settings: this device's, or the tablet's while the phone is a remote control. */
+val Context.prefs: DataStore<Preferences>
+    get() = (this as? com.desk.dashboard.remote.RemoteContext)?.session?.settings ?: localPrefs
 
 object Keys {
     /** Calendar ids (as strings) shown on the Today tile; absent = default (all Google calendars). */

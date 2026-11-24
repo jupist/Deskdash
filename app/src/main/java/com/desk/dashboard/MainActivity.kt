@@ -169,7 +169,12 @@ class MainActivity : ComponentActivity() {
                 }
             ) {
                 val c = cfg
-                if (c != null && !c.onboarded) {
+                val remoteTarget by com.desk.dashboard.remote.RemoteMode.target.collectAsStateWithLifecycle()
+                val rt = remoteTarget
+                if (rt != null) {
+                    // This phone is a tablet's remote control: its screens show the tablet instead.
+                    com.desk.dashboard.ui.RemoteShell(rt, onExit = { com.desk.dashboard.remote.RemoteMode.stop(activity) })
+                } else if (c != null && !c.onboarded) {
                     OnboardingScreen(onDone = { lifecycleScope.launch { DisplaySettings.setOnboarded(activity) } })
                 } else {
                     AnimatedContent(

@@ -1,5 +1,6 @@
 package com.desk.dashboard.modules
 
+import com.desk.dashboard.remote.datesDao
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -224,7 +225,7 @@ object CountdownModule : Module(
     @Composable
     override fun Content(t: TileScope) {
         val actions = LocalDashActions.current
-        val dao = DashDb.get(LocalContext.current).dates()
+        val dao = LocalContext.current.datesDao()
         val today by rememberToday()
         val entries by remember(today) { dao.upcoming(today) }.collectAsStateWithLifecycle(null)
         val list = entries ?: return Tile(label(t)) {}

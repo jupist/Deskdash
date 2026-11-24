@@ -65,7 +65,10 @@ object Alarms {
 
     @Volatile private var store: DataStore<Preferences>? = null
 
-    internal fun store(context: Context): DataStore<Preferences> = store ?: synchronized(this) {
+    internal fun store(context: Context): DataStore<Preferences> =
+        (context as? com.desk.dashboard.remote.RemoteContext)?.session?.alarm ?: localStore(context)
+
+    private fun localStore(context: Context): DataStore<Preferences> = store ?: synchronized(this) {
         store ?: PreferenceDataStoreFactory.create(
             produceFile = {
                 context.applicationContext.createDeviceProtectedStorageContext().preferencesDataStoreFile("alarm")
@@ -85,7 +88,7 @@ object Alarms {
             snoozeMinutes = p[SNOOZE_MIN] ?: 9,
             snoozeAt = p[SNOOZE_AT]?.takeIf { it > 0 },
             once = p[ONCE] ?: false,
-        ).also { cached = it }
+        ).also { if (context !is com.desk.dashboard.remote.RemoteContext) cached = it }
     }
 
     suspend fun setEnabled(context: Context, on: Boolean) = edit(context) {
@@ -116,6 +119,8 @@ object Alarms {
 
     /** Clears and re-registers both the main alarm and any pending snooze with AlarmManager. */
     suspend fun reschedule(context: Context) {
+        // A phone changing the tablet's alarm: the tablet schedules it, not the phone.
+        if (context is com.desk.dashboard.remote.RemoteContext) return
         val cfg = config(context).first()
         val am = context.getSystemService(AlarmManager::class.java)
         am.cancel(firePending(context, RC_RING))

@@ -1,5 +1,9 @@
 package com.desk.dashboard.ui
 
+import com.desk.dashboard.remote.findActivity
+import com.desk.dashboard.remote.isRemote
+import com.desk.dashboard.remote.RemoteContext
+import com.desk.dashboard.remote.RemoteSession
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -68,6 +72,9 @@ private val pages = listOf(
     Page("about", "About", DashIcons.info, "Version and credits"),
 )
 
+/** Pages a phone can change on a tablet it's controlling. */
+private val remotePages = setOf("appearance", "dashboard", "countdowns", "weather", "alarm", "night")
+
 /**
  * Settings: a list of pages beside the selected page on wide screens; on narrow screens the list
  * and the page take turns. [initial] opens straight at a page (from a tile's shortcut).
@@ -79,6 +86,9 @@ fun SettingsScreen(initial: String?, onDone: () -> Unit) {
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Dash.frame)) {
         val wide = maxWidth >= 720.dp
+        // Controlling a tablet: only what can be set from afar (device settings stay on the device).
+        val remote = LocalContext.current.isRemote
+        val pages = if (remote) pages.filter { it.id in remotePages } else pages
         val page = pages.firstOrNull { it.id == current } ?: if (wide) pages[0] else null
         BackHandler {
             when {
@@ -93,7 +103,7 @@ fun SettingsScreen(initial: String?, onDone: () -> Unit) {
                     IconButton(DashIcons.back, outline = false) { current = null }
                     HSpace(8.dp)
                 }
-                Txt(if (!wide && page != null) page.title else "Settings", Type.secondary, Dash.ink, Modifier.weight(1f))
+                Txt(if (!wide && page != null) page.title else if (remote) "Tablet settings" else "Settings", Type.secondary, Dash.ink, Modifier.weight(1f))
                 OutlineButton("Done", DashIcons.check, onDone)
             }
             Spacer(Modifier.height(Dash.gap))
@@ -105,6 +115,10 @@ fun SettingsScreen(initial: String?, onDone: () -> Unit) {
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         pages.forEach { p -> NavItem(p, selected = wide && p == page) { current = p.id } }
+                        if (remote) Txt(
+                            "Calendars, display, permissions and backup are set on the tablet itself.",
+                            Type.meta, Dash.muted, Modifier.padding(horizontal = 14.dp, vertical = 12.dp), maxLines = 3,
+                        )
                     }
                 }
                 if (page != null) {
@@ -169,6 +183,22 @@ private fun PageContent(id: String, showOverlay: ((@Composable () -> Unit)?) -> 
     }
 }
 
+/** A tablet's presets, from a phone controlling it: pick which is in use. */
+@Composable
+private fun RemotePresets(session: RemoteSession) {
+    val state by session.state.collectAsStateWithLifecycle()
+    val b = (state as? RemoteSession.State.Ready)?.board ?: return
+    Section("Presets") {
+        Txt("Saved dashboards on the tablet. The one you pick is its dashboard.", Type.meta, Dash.muted, maxLines = 2)
+        b.presets.forEach { (id, name) ->
+            RowDivider()
+            SettingRow(name, if (id == b.active) "In use" else null, onClick = { session.setActive(id) }) {
+                if (id == b.active) Icon(DashIcons.check, Dash.accentText, 16.dp)
+            }
+        }
+    }
+}
+
 @Composable
 private fun DashboardPage() {
     val context = LocalContext.current
@@ -186,10 +216,10 @@ private fun DashboardPage() {
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MiniButton("Edit layout", Dash.ink, Dash.accent) { actions?.editLayout?.invoke() }
-            MiniButton("Reset to default", Dash.muted) { BoardStore.resetActive() }
+            if (!context.isRemote) MiniButton("Reset to default", Dash.muted) { BoardStore.resetActive() }
         }
     }
-    Section("Presets") {
+    (context as? RemoteContext)?.let { RemotePresets(it.session) } ?: Section("Presets") {
         Txt("Saved dashboards you can switch between. The one you pick is the dashboard.", Type.meta, Dash.muted, maxLines = 2)
         val b = boards ?: return@Section
         b.presets.forEach { p ->
@@ -226,7 +256,7 @@ private fun DashboardPage() {
 @Composable
 private fun NightExtras(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val context = LocalContext.current
-    val activity = context as android.app.Activity
+    val activity = context.findActivity()
     val scope = rememberCoroutineScope()
     val cfg by remember { DisplaySettings.config(context) }.collectAsStateWithLifecycle(null)
     val c = cfg ?: return
@@ -242,7 +272,8 @@ private fun NightExtras(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                     showOverlay { NightScreen(c, onTap = {}) }
                 } else {
                     showOverlay(null)
-                    setWindowBrightness(activity, if (c.isNight(java.time.LocalTime.now())) c.nightBrightness else null)
+                    // Back to this screen's own brightness (a tablet's night hours don't apply to a phone controlling it).
+                    setWindowBrightness(activity, if (!context.isRemote && c.isNight(java.time.LocalTime.now())) c.nightBrightness else null)
                 }
             }
         }

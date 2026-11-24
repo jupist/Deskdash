@@ -87,7 +87,7 @@ object DisplaySettings {
             burnIn = p[burnIn] ?: if (p[pixelShift] == true) "shift" else "off",
             // Installs from before onboarding existed count as set up (they have a weather place).
             onboarded = p[onboarded] ?: (p[Keys.weatherCity] != null),
-        ).also { cached = it }
+        ).also { if (context !is com.desk.dashboard.remote.RemoteContext) cached = it }
     }.distinctUntilChanged()
 
     private fun parseTime(s: String) = runCatching { LocalTime.parse(s) }.getOrNull()

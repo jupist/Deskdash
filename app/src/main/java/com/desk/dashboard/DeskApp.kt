@@ -54,6 +54,7 @@ class DeskApp : Application() {
         }
         Ambient.init(this)
         com.desk.dashboard.remote.RemoteHost.init(this)
+        com.desk.dashboard.remote.RemoteMode.init(this)
         Apps.refresh(this) // preload the app list so it opens instantly
     }
 

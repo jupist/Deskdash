@@ -1,6 +1,11 @@
 package com.desk.dashboard.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
+import com.desk.dashboard.board.DashActions
+import com.desk.dashboard.board.LocalDashActions
+import com.desk.dashboard.remote.RemoteContext
+import com.desk.dashboard.remote.RemoteMode
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.mutableStateListOf
@@ -129,84 +134,130 @@ internal fun RemotePage(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                 if (i > 0) RowDivider()
                 val isPaired = t.id?.let { Pairings.get(context, it) } != null
                 NavRow(t.name + if (t.id == own) " (this device)" else "", if (isPaired) "Paired" else "Pair", icon = DashIcons.phone) {
-                    showOverlay { RemoteEditor(t, onClose = { showOverlay(null) }) }
+                    RemoteMode.start(context, t)
                 }
             }
         }
     }
 }
 
-/** Full screen: connects to [tablet], pairs if needed, then edits its dashboard. */
+private sealed interface RemoteScreen {
+    data object Home : RemoteScreen
+    data object Layout : RemoteScreen
+    data class Settings(val section: String?) : RemoteScreen
+}
+
+/**
+ * Remote control mode, in place of the app's own screens: finds the tablet, connects (pairing
+ * the first time), then shows its dashboard and settings. Everything below runs with a
+ * [RemoteContext], so the app's usual screens read and change the tablet.
+ */
 @Composable
-private fun RemoteEditor(tablet: FoundTablet, onClose: () -> Unit) {
+fun RemoteShell(target: RemoteMode.Target, onExit: () -> Unit) {
     val context = LocalContext.current
-    val session = remember(tablet) { RemoteSession(context, tablet) }
+    var tablet by remember(target) { mutableStateOf(RemoteMode.lastSeen?.takeIf { RemoteMode.matches(target, it) }) }
+    val t = tablet
+    if (t == null) {
+        // Find it on the network first (its address can change between visits).
+        val discovery = remember { Discovery(context) }
+        DisposableEffect(Unit) {
+            discovery.start()
+            onDispose { discovery.stop() }
+        }
+        val found by discovery.found.collectAsStateWithLifecycle()
+        LaunchedEffect(found) { found.firstOrNull { RemoteMode.matches(target, it) }?.let { RemoteMode.lastSeen = it; tablet = it } }
+        Column(Modifier.fillMaxSize().background(Dash.frame).padding(Dash.gap)) {
+            ShellBar(target.name, "Looking for it on this Wi-Fi…", onSettings = null, onExit)
+            Spacer(Modifier.height(Dash.gap))
+            Message("Make sure ${target.name} is on, on the same Wi-Fi, and has Edit from another device turned on (Settings › Remote control).") {}
+        }
+        return
+    }
+
+    val session = remember(t) { RemoteSession(context, t) }
     DisposableEffect(session) {
         session.start()
         onDispose { session.close() }
     }
+    val remote = remember(session) { RemoteContext(context, session) }
     val state by session.state.collectAsStateWithLifecycle()
+    var screen by remember { mutableStateOf<RemoteScreen>(RemoteScreen.Home) }
     var sheet by remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-    var editingLayout by remember { mutableStateOf(false) }
-    BackHandler(enabled = editingLayout && sheet == null) { editingLayout = false }
+    BackHandler(enabled = screen == RemoteScreen.Layout && sheet == null) { screen = RemoteScreen.Home }
     BackHandler(enabled = sheet != null) { sheet = null }
-    // Tiles' own pop-ups (the note editor) open over this screen.
-    CompositionLocalProvider(LocalOverlay provides { sheet = it }) {
+    val actions = remember {
+        DashActions(
+            openSettings = { section -> sheet = null; screen = RemoteScreen.Settings(section) },
+            lock = {},
+            openApps = {},
+            editLayout = { sheet = null; screen = RemoteScreen.Layout },
+        )
+    }
+    CompositionLocalProvider(
+        LocalContext provides remote,
+        LocalDashActions provides actions,
+        LocalOverlay provides { sheet = it },
+    ) {
         Box(Modifier.fillMaxSize().background(Dash.frame)) {
             val ready = state as? RemoteSession.State.Ready
-            if (ready != null && editingLayout) {
-                RemoteLayoutEditor(session, ready.board, onDone = { editingLayout = false }) { sheet = it }
-            } else {
-                RemoteHome(tablet, session, state, onClose, onEditLayout = { editingLayout = true }) { sheet = it }
+            when (val sc = screen) {
+                is RemoteScreen.Settings -> SettingsScreen(sc.section, onDone = { screen = RemoteScreen.Home })
+                RemoteScreen.Layout -> if (ready != null) RemoteLayoutEditor(session, ready.board, onDone = { screen = RemoteScreen.Home }) { sheet = it }
+                RemoteScreen.Home -> Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap)) {
+                    ShellBar(
+                        t.name,
+                        when (state) {
+                            RemoteSession.State.Connecting -> "Connecting…"
+                            is RemoteSession.State.NeedsCode -> "Not paired yet"
+                            is RemoteSession.State.Ready -> "Remote control · changes show on the tablet straight away"
+                            is RemoteSession.State.Failed -> "Not connected"
+                        },
+                        onSettings = if (ready != null) ({ screen = RemoteScreen.Settings(null) }) else null,
+                        onExit = onExit,
+                    )
+                    Spacer(Modifier.height(Dash.gap))
+                    when (val s = state) {
+                        RemoteSession.State.Connecting -> Unit
+                        is RemoteSession.State.Failed -> Message(s.message) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                MiniButton("Try again", Dash.ink, Dash.accent) { session.retry() }
+                                if (t.id != null && Pairings.get(context, t.id) != null) {
+                                    MiniButton("Forget tablet") { Pairings.forget(context, t.id); session.retry() }
+                                }
+                            }
+                        }
+                        is RemoteSession.State.NeedsCode -> CodeEntry(s.error) { session.pair(it) }
+                        is RemoteSession.State.Ready -> RemoteLayout(session, s.board, onEditLayout = { screen = RemoteScreen.Layout }) { sheet = it }
+                    }
+                }
             }
             sheet?.invoke()
         }
     }
 }
 
+/** Top of remote control: which tablet, how it's going, its settings, and leaving remote control. */
 @Composable
-private fun RemoteHome(
-    tablet: FoundTablet, session: RemoteSession, state: RemoteSession.State, onClose: () -> Unit,
-    onEditLayout: () -> Unit, showSheet: ((@Composable () -> Unit)?) -> Unit,
-) {
-    val context = LocalContext.current
-    Column(Modifier.fillMaxSize().imePadding().padding(Dash.gap)) {
-        Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(DashIcons.back, outline = false, onClick = onClose)
-            HSpace(8.dp)
-            Column(Modifier.weight(1f)) {
-                Txt(tablet.name, Type.secondary, Dash.ink)
-                Txt(
-                    when (state) {
-                        RemoteSession.State.Connecting -> "Connecting…"
-                        is RemoteSession.State.NeedsCode -> "Not paired yet"
-                        is RemoteSession.State.Ready -> "Connected · changes show on the tablet straight away"
-                        is RemoteSession.State.Failed -> "Not connected"
-                    },
-                    Type.meta, Dash.muted,
-                )
-            }
+private fun ShellBar(name: String, status: String, onSettings: (() -> Unit)?, onExit: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(Dash.topBar).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Txt(name, Type.secondary, Dash.ink)
+            Txt(status, Type.meta, Dash.muted)
         }
-        Spacer(Modifier.height(Dash.gap))
-        when (val s = state) {
-            RemoteSession.State.Connecting -> Unit
-            is RemoteSession.State.Failed -> Message(s.message) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MiniButton("Try again", Dash.ink, Dash.accent) { session.retry() }
-                    if (tablet.id != null && Pairings.get(context, tablet.id) != null) {
-                        MiniButton("Forget tablet") { Pairings.forget(context, tablet.id); session.retry() }
-                    }
-                }
-            }
-            is RemoteSession.State.NeedsCode -> CodeEntry(s.error) { session.pair(it) }
-            is RemoteSession.State.Ready -> RemoteLayout(session, s.board, onEditLayout, showSheet)
+        if (onSettings != null) {
+            OutlineButton("Settings", DashIcons.gear, onSettings)
+            HSpace(10.dp)
         }
+        OutlineButton("Exit remote", DashIcons.close, onExit)
     }
 }
 
 /** Tiles whose content lives in the tile itself, so the phone can show and change it. */
-private fun showsLive(t: TileSpec) = when (t.type) {
+private fun showsLive(t: TileSpec, b: RemoteBoard) = when (t.type) {
     "note", "clock", "worldclock" -> true
+    // These read the tablet's settings through the remote context.
+    "alarm" -> "prefs" in b.features
+    "countdown" -> b.dates != null
     "checklist" -> t.config["gtasks"] == null
     else -> false
 }
@@ -225,17 +276,10 @@ private fun ScaledBoard(
                 editing = editing,
                 onStartEditing = onStartEditing,
                 onChange = onChange,
-                // Outside edit mode a tap edits what the tile shows: the tablet's dates or alarm, else its settings.
-                onTileSettings = { spec ->
-                    when {
-                        !editing && spec.type == "countdown" && b.dates != null -> showSheet { RemoteDatesSheet(session, b, spec.id, showSheet) }
-                        !editing && spec.type == "alarm" && b.alarm != null -> showSheet { RemoteAlarmSheet(session, b, spec.id, showSheet) }
-                        "tiles" in b.features -> showSheet { RemoteTileSettings(session, spec.id, showSheet) }
-                    }
-                },
+                onTileSettings = { spec -> if ("tiles" in b.features) showSheet { RemoteTileSettings(session, spec.id, showSheet) } },
                 onTileConfig = { spec, cfg -> if ("tiles" in b.features) session.updateTile(spec.id) { it.copy(config = cfg) } },
                 modifier = Modifier.fillMaxSize(),
-                live = { "tiles" in b.features && showsLive(it) },
+                live = { "tiles" in b.features && showsLive(it, b) },
             )
         }
     }
@@ -315,82 +359,6 @@ private fun RemoteLayoutEditor(session: RemoteSession, b: RemoteBoard, onDone: (
 }
 
 private val dateFmt = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
-
-/** "Tile settings" in a tile's panel header, for its style and options. */
-@Composable
-private fun TileSettingsLink(session: RemoteSession, b: RemoteBoard, tileId: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    if ("tiles" in b.features) MiniButton("Tile settings") { showSheet { RemoteTileSettings(session, tileId, showSheet) } }
-}
-
-/** The tablet's important dates: add and remove, from a tap on the tile. */
-@Composable
-private fun RemoteDatesSheet(session: RemoteSession, b: RemoteBoard, tileId: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    val state by session.state.collectAsStateWithLifecycle()
-    val dates = (state as? RemoteSession.State.Ready)?.board?.dates.orEmpty()
-    var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf<LocalDate?>(null) }
-    var category by remember { mutableStateOf(Category.OTHER) }
-    var picking by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxSize()) {
-        Overlay(onDismiss = { showSheet(null) }, width = 620.dp) {
-            PanelHeader("Important dates", { showSheet(null) }) { TileSettingsLink(session, b, tileId, showSheet) }
-            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextInput(title, { title = it }, "What's happening", UpcomingDate.TITLE_MAX, Modifier.weight(1f))
-                    HSpace(8.dp)
-                    PickerField(date?.format(dateFmt), "Date", Modifier.width(150.dp)) { picking = true }
-                }
-                Spacer(Modifier.height(10.dp))
-                Chips(Category.entries, { it == category }, { it.label }) { category = it }
-                Spacer(Modifier.height(12.dp))
-                PrimaryButton("Add") {
-                    val d = date
-                    if (title.isNotBlank() && d != null) {
-                        session.saveDate(null, title.trim(), d, null, category.name)
-                        title = ""; date = null; category = Category.OTHER
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-                if (dates.isEmpty()) Txt("No upcoming dates.", Type.meta, Dash.muted)
-                dates.forEachIndexed { i, d ->
-                    if (i > 0) RowDivider()
-                    val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), d.date)
-                    SettingRow(d.title, d.date.format(dateFmt) + " · " + when (days) { 0L -> "today"; 1L -> "tomorrow"; else -> "in $days days" }) {
-                        IconButton(DashIcons.trash, size = 30.dp, iconSize = 13.dp) { session.deleteDate(d.id) }
-                    }
-                }
-            }
-        }
-        if (picking) DatePickerOverlay(date, LocalDate.now(), onPick = { date = it; picking = false }) { picking = false }
-    }
-}
-
-private val ringFmt = DateTimeFormatter.ofPattern("EEE dd MMM 'at' HH:mm", Locale.ENGLISH)
-
-/** The tablet's alarm: on or off, time and days, from a tap on the tile. */
-@Composable
-private fun RemoteAlarmSheet(session: RemoteSession, b: RemoteBoard, tileId: String, showSheet: ((@Composable () -> Unit)?) -> Unit) {
-    val state by session.state.collectAsStateWithLifecycle()
-    val a = (state as? RemoteSession.State.Ready)?.board?.alarm ?: return
-    var picking by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxSize()) {
-        Overlay(onDismiss = { showSheet(null) }, width = 560.dp) {
-            PanelHeader("Alarm", { showSheet(null) }) { TileSettingsLink(session, b, tileId, showSheet) }
-            SettingRow("Alarm", if (a.enabled) a.next?.let { "Rings ${it.format(ringFmt)}" } ?: "On" else "Off") {
-                Switch(a.enabled, { session.setAlarm(enabled = !a.enabled) })
-            }
-            RowDivider()
-            NavRow("Time", "%02d:%02d".format(a.time.hour, a.time.minute)) { picking = true }
-            RowDivider()
-            SettingRow("Repeat", if (a.days.isEmpty()) "Once" else null) {}
-            Chips(DayOfWeek.entries, { it in a.days }, { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }) { d ->
-                session.setAlarm(days = if (d in a.days) a.days - d else a.days + d)
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-        if (picking) TimePickerOverlay(a.time, onPick = { session.setAlarm(time = it); picking = false }, onClear = null) { picking = false }
-    }
-}
 
 @Composable
 private fun Message(text: String, actions: @Composable () -> Unit) {

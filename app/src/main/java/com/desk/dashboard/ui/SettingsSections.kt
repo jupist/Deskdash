@@ -1,5 +1,7 @@
 package com.desk.dashboard.ui
 
+import com.desk.dashboard.remote.datesDao
+import com.desk.dashboard.remote.isRemote
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -127,7 +129,7 @@ private class DateForm(today: LocalDate) {
 
 @Composable
 internal fun DatesSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
-    val dao = DashDb.get(LocalContext.current).dates()
+    val dao = LocalContext.current.datesDao()
     val today by rememberToday()
     val entries by remember(today) { dao.upcoming(today) }.collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
@@ -240,7 +242,7 @@ internal fun WeatherSection() {
         scope.launch {
             val fix = com.desk.dashboard.system.DeviceLocation.current(context)
             status = if (fix == null) "Couldn't get a location. Try again, or search instead" else {
-                repo.setCity(repo.placeAt(fix.latitude, fix.longitude))
+                repo.setCity(repo.placeAt(fix.latitude, fix.longitude), context)
                 null
             }
         }
@@ -289,7 +291,7 @@ internal fun WeatherSection() {
                     Modifier.fillMaxWidth().clickable {
                         focus.clearFocus()
                         query = ""
-                        scope.launch { repo.setCity(place) }
+                        scope.launch { repo.setCity(place, context) }
                     }.padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -303,7 +305,7 @@ internal fun WeatherSection() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("Units", Type.body, Dash.muted, Modifier.width(64.dp))
             Segmented(listOf("celsius", "fahrenheit"), unit, { if (it == "celsius") "°C" else "°F" }) { value ->
-                if (value != unit) scope.launch { repo.setUnit(value) }
+                if (value != unit) scope.launch { repo.setUnit(value, context) }
             }
         }
     }
@@ -411,7 +413,7 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
             }
             Switch(c.enabled, onToggle = {
                 val on = !c.enabled
-                if (on) ensureAlarmPermissions(context) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
+                if (on && !context.isRemote) ensureAlarmPermissions(context) { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }
                 scope.launch { Alarms.setEnabled(context, on) }
             })
         }
@@ -429,7 +431,8 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                     }
                 }
             }
-            Field("Sound", Modifier.weight(1.4f)) {
+            // The sound is a file on the device that rings, so a phone controlling a tablet can't pick it.
+            if (!context.isRemote) Field("Sound", Modifier.weight(1.4f)) {
                 PickerField(soundName, "") {
                     soundPicker.launch(
                         Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
@@ -483,8 +486,8 @@ internal fun AlarmSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
                 scope.launch { Alarms.setSnoozeMinutes(context, m) }
             }
         }
-        Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (!context.isRemote) Spacer(Modifier.height(14.dp))
+        if (!context.isRemote) Row(verticalAlignment = Alignment.CenterVertically) {
             Txt("Plays the alarm sound now, to check the volume", Type.meta, Dash.muted, Modifier.weight(1f))
             MiniButton("Test ring", Dash.ink) { AlarmService.ring(context) }
         }

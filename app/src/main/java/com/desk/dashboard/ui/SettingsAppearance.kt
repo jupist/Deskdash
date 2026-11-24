@@ -1,5 +1,7 @@
 package com.desk.dashboard.ui
 
+import com.desk.dashboard.remote.isRemote
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -36,7 +38,9 @@ import kotlinx.coroutines.launch
 internal fun AppearancePage() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val a = Look.appearance
+    // Controlling a tablet: show its look, not this phone's.
+    val remoteLook by remember { AppearanceStore.flow(context) }.collectAsStateWithLifecycle(null)
+    val a = if (context.isRemote) remoteLook ?: return else Look.appearance
     fun set(block: (Appearance) -> Appearance) = scope.launch { AppearanceStore.update(context) { block(it) } }
 
     Section("Theme") {
@@ -104,8 +108,11 @@ internal fun AppearancePage() {
             }
         }
         Spacer(Modifier.height(12.dp))
-        CustomFontRow("display", "Custom display font", "Clock, numbers and titles")
-        CustomFontRow("text", "Custom text font", "Labels and body text")
+        // Font files live on the device that shows them.
+        if (!context.isRemote) {
+            CustomFontRow("display", "Custom display font", "Clock, numbers and titles")
+            CustomFontRow("text", "Custom text font", "Labels and body text")
+        }
         Spacer(Modifier.height(4.dp))
         SettingRow("Text size", "Labels and body text; clocks size themselves to their tile") {
             Segmented(listOf(0.9f, 1f, 1.15f, 1.3f), a.textScale, { when (it) { 0.9f -> "S"; 1f -> "M"; 1.15f -> "L"; else -> "XL" } }) { v -> set { it.copy(textScale = v) } }

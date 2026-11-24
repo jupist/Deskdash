@@ -1,5 +1,6 @@
 package com.desk.dashboard.ui
 
+import com.desk.dashboard.remote.findActivity
 import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
@@ -60,7 +61,7 @@ private fun SettingRow(title: String, hint: String? = null, control: @Composable
 @Composable
 fun NightSection(showOverlay: ((@Composable () -> Unit)?) -> Unit) {
     val context = LocalContext.current
-    val activity = context as Activity
+    val activity = context.findActivity()
     val scope = rememberCoroutineScope()
     val cfg by remember { DisplaySettings.config(context) }.collectAsStateWithLifecycle(null)
     val c = cfg ?: return

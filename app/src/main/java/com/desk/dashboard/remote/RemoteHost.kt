@@ -17,6 +17,10 @@ import com.desk.dashboard.alarm.Alarms
 import com.desk.dashboard.data.Category
 import com.desk.dashboard.data.DashDb
 import com.desk.dashboard.data.UpcomingDate
+import com.desk.dashboard.data.Backup
+import com.desk.dashboard.data.WeatherRepo
+import com.desk.dashboard.data.prefs
+import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.merge
 import kotlinx.serialization.json.JsonPrimitive
@@ -251,6 +255,7 @@ object RemoteHost {
                                     BoardStore.boards.drop(1),
                                     DashDb.get(app).dates().upcoming(LocalDate.now()).drop(1),
                                     Alarms.config(app).drop(1),
+                                    app.prefs.data.drop(1),
                                 ).collect { runCatching { send(obj("op" to "changed")) } }
                             }
                             obj("ok" to true)
@@ -320,7 +325,7 @@ object RemoteHost {
                 "dates" -> {
                     val dates = withContext(Dispatchers.IO) { DashDb.get(app).dates().upcoming(LocalDate.now()).first() }
                     obj("dates" to JsonArray(dates.map {
-                        obj("id" to it.id, "title" to it.title, "date" to it.date.toString(), "time" to it.time?.toString(), "category" to it.category.name)
+                        obj("id" to it.id, "title" to it.title, "date" to it.date.toString(), "time" to it.time?.toString(), "category" to it.category.name, "note" to it.note)
                     }))
                 }
                 "date.save" -> {
@@ -333,6 +338,7 @@ object RemoteHost {
                                 id = msg.str("id")?.toLongOrNull() ?: 0, title = title, date = date,
                                 time = msg.str("time")?.let { runCatching { LocalTime.parse(it) }.getOrNull() },
                                 category = runCatching { Category.valueOf(msg.str("category")!!) }.getOrDefault(Category.OTHER),
+                                note = msg.str("note")?.take(UpcomingDate.NOTE_MAX),
                             )
                         )
                     }
@@ -343,6 +349,27 @@ object RemoteHost {
                     withContext(Dispatchers.IO) {
                         val dao = DashDb.get(app).dates()
                         dao.upcoming(LocalDate.of(1970, 1, 1)).first().firstOrNull { it.id == id }?.let { dao.delete(it) }
+                    }
+                    obj("ok" to true)
+                }
+                "prefs.get" -> {
+                    val store = prefsStore(msg.str("store")) ?: return@withContext obj("error" to "invalid")
+                    obj("values" to withContext(Dispatchers.IO) { Backup.dump(store) }.filterDeviceOnly())
+                }
+                "prefs.set" -> {
+                    val name = msg.str("store")
+                    val store = prefsStore(name) ?: return@withContext obj("error" to "invalid")
+                    val set = ((msg["set"] as? JsonObject) ?: JsonObject(emptyMap())).filterDeviceOnly()
+                    val remove = (msg["remove"] as? JsonArray)?.map { (it as JsonPrimitive).content }.orEmpty()
+                        .filter { it !in Backup.skip && it !in DEVICE_ONLY }
+                    withContext(Dispatchers.IO) {
+                        store.edit { p ->
+                            Backup.restoreInto(p, set)
+                            remove.forEach { k -> p.asMap().keys.firstOrNull { it.name == k }?.let { p.remove(it) } }
+                        }
+                        // What the tablet's own settings screens would do after the same change.
+                        if (name == "alarm") Alarms.reschedule(app)
+                        if (set.keys.any { it.startsWith("weather_") || it == "temp_unit" }) WeatherRepo.get(app).refreshNow()
                     }
                     obj("ok" to true)
                 }
@@ -368,6 +395,17 @@ object RemoteHost {
                 else -> obj("error" to "unknown", "op" to op)
             }
         }
+    }
+
+    /** Settings that belong to the tablet itself and a phone shouldn't see or change. */
+    private val DEVICE_ONLY = setOf("onboarded", "keep_awake_charging", "alarm_sound_uri", "alarm_snooze_at")
+
+    private fun JsonObject.filterDeviceOnly() = JsonObject(filterKeys { it !in DEVICE_ONLY && it !in Backup.skip })
+
+    private fun prefsStore(name: String?) = when (name) {
+        "settings" -> app.prefs
+        "alarm" -> Alarms.store(app)
+        else -> null
     }
 
     internal fun valid(l: GridLayout, s: ScreenInfo) = l.cols == s.cols && l.rows == s.rows &&

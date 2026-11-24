@@ -31,7 +31,7 @@ object Protocol {
     const val SERVICE_TYPE = "_deskdash._tcp."
 
     /** What this build can edit remotely. A newer build adds names; both sides use the overlap. */
-    val FEATURES = listOf("layout", "presets", "tiles", "countdowns", "alarm")
+    val FEATURES = listOf("layout", "presets", "tiles", "countdowns", "alarm", "prefs")
 
     val json = Json { ignoreUnknownKeys = true; encodeDefaults = false }
 

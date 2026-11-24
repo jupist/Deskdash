@@ -264,18 +264,21 @@ class WeatherRepo private constructor(private val context: Context) {
         Place(found ?: "%.3f, %.3f".format(lat, lon), lat, lon)
     }
 
-    suspend fun setCity(place: Place) {
-        context.prefs.edit {
+    /** Saves the place on [target]: this device, or the tablet a phone is controlling (which then refreshes itself). */
+    suspend fun setCity(place: Place, target: Context = context) {
+        target.prefs.edit {
             it[Keys.weatherCity] = place.name
             it[Keys.weatherLat] = place.latitude
             it[Keys.weatherLon] = place.longitude
         }
+        if (target is com.desk.dashboard.remote.RemoteContext) return
         _state.value = _state.value.copy(city = place.name, forecast = null, fetchedAt = null, failed = false)
         refreshNow()
     }
 
-    suspend fun setUnit(unit: String) {
-        context.prefs.edit { it[Keys.tempUnit] = unit }
+    suspend fun setUnit(unit: String, target: Context = context) {
+        target.prefs.edit { it[Keys.tempUnit] = unit }
+        if (target is com.desk.dashboard.remote.RemoteContext) return
         refreshNow()
     }
 
